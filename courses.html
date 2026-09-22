@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CampusFlow — Mes cours</title>
+  <link rel="stylesheet" href="page-shell.css">
+  <link rel="stylesheet" href="shared-pages.css">
+  <link rel="stylesheet" href="modern.css">
+  <link rel="stylesheet" href="courses.css">
+</head>
+<body data-page="courses">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html"><span class="brand-mark">C</span><span>Campus<span>Flow</span></span></a>
+      <p class="sidebar-label">Espace étudiant</p>
+      <nav>
+        <a class="nav-item" href="index.html"><span class="icon">⌂</span> Vue d'ensemble</a>
+        <a class="nav-item" href="tasks.html"><span class="icon">✓</span> Mes tâches</a>
+        <a class="nav-item" href="add.html"><span class="icon">+</span> Ajouter un travail</a>
+        <a class="nav-item active" href="courses.html"><span class="icon">▣</span> Mes cours</a>
+        <a class="nav-item" href="timetable.html"><span class="icon">▦</span> Mon emploi du temps</a>
+        <a class="nav-item" href="settings.html"><span class="icon">⚙</span> Paramètres</a>
+      </nav>
+      <div class="sidebar-footer">Tes données restent sur cet appareil.</div>
+    </aside>
+    <main class="page-content">
+      <section class="page-card">
+        <p class="eyebrow">Bibliothèque personnelle</p>
+        <h1 class="page-title">Mes cours</h1>
+        <p class="page-subtitle">Retrouve tes ressources par matière, sans quitter ton espace étudiant.</p>
+        <div class="course-tools">
+          <form id="course-form" class="inline-form">
+            <label>Nouvelle matière<input id="new-course" required placeholder="Ex. Physique"></label>
+            <button class="primary-button" type="submit">Ajouter la matière</button>
+          </form>
+          <div class="privacy-note"><strong>Connexion privée</strong><span>Les liens restent dans ton navigateur. Aucun mot de passe ni jeton Notion n'est enregistré par CampusFlow.</span></div>
+        </div>
+        <p><a class="resource-link" href="propose-course.php">Proposer une ressource à faire valider par l'administration ↗</a></p>
+      </section>
+      <section class="page-card add-resource-card">
+        <div class="panel-heading"><div><h2>Ajouter un cours</h2><p>Colle un lien Notion, PDF ou Gemini Notebook.</p></div></div>
+        <form id="resource-form" class="resource-form">
+          <label>Matière<select id="resource-course" required></select></label>
+          <label>Type<select id="resource-type"><option value="notion">Page Notion</option><option value="pdf">PDF</option><option value="gemini">Gemini Notebook</option><option value="other">Autre</option></select></label>
+          <label>Nom du cours<input id="resource-title" required placeholder="Ex. Chapitre 3 — Probabilités"></label>
+          <label class="resource-url-field">Lien<input id="resource-url" type="url" required placeholder="https://..."></label>
+          <button class="primary-button" type="submit">Ajouter le cours</button>
+        </form>
+        <p class="embed-hint">Une petite prévisualisation est affichée quand le service autorise l'intégration. Le lien reste toujours disponible si l'embed est bloqué.</p>
+      </section>
+      <div id="courses-list"></div>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

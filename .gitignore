@@ -1,0 +1,4 @@
+node_modules/
+.env
+campusflow.sqlite
+.env
