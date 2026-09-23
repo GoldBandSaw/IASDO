@@ -33,10 +33,10 @@ if ($path === 'api/auth/setup' && $method === 'POST') {
     $token = trim((string)($body['token'] ?? ''));
     $password = (string)($body['password'] ?? '');
     if (!passwordIsValid($password)) respond(['error' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre et un chiffre.'], 422);
-    $stmt = $db->prepare('SELECT username FROM users WHERE username = ? AND setup_used = 0 AND setup_token_hash = ?');
+    $stmt = $db->prepare('SELECT username FROM users WHERE username = ? AND setup_used = FALSE AND setup_token_hash = ?');
     $stmt->execute([$username, hash('sha256', $token)]);
     if (!$stmt->fetch()) respond(['error' => 'Lien de première connexion invalide ou déjà utilisé.'], 401);
-    $update = $db->prepare('UPDATE users SET password_hash = ?, setup_token_hash = "", setup_used = 1 WHERE username = ?');
+    $update = $db->prepare('UPDATE users SET password_hash = ?, setup_token_hash = \'\', setup_used = TRUE WHERE username = ?');
     $update->execute([password_hash($password, PASSWORD_DEFAULT), $username]);
     respond(['ok' => true]);
 }
@@ -74,11 +74,11 @@ if ($path === 'api/state' && $method === 'GET') {
 }
 if ($path === 'api/tasks' && $method === 'POST') {
     $body = jsonBody(); if (!isset($body['id'])) respond(['error' => 'id requis'], 422);
-    $stmt = $db->prepare('INSERT OR REPLACE INTO tasks (id, payload) VALUES (?, ?)'); $stmt->execute([(string)$body['id'], json_encode($body)]);
+    $stmt = $db->prepare('INSERT INTO tasks (id, payload) VALUES (?, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload'); $stmt->execute([(string)$body['id'], json_encode($body)]);
     respond($body, 201);
 }
 if ($path === 'api/settings' && $method === 'PUT') {
-    $body = jsonBody(); $stmt = $db->prepare('INSERT OR REPLACE INTO settings (id, payload) VALUES (1, ?)'); $stmt->execute([json_encode($body)]); respond($body);
+    $body = jsonBody(); $stmt = $db->prepare('INSERT INTO settings (id, payload) VALUES (1, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload'); $stmt->execute([json_encode($body)]); respond($body);
 }
 if ($path === 'api/proposals' && $method === 'GET') {
     respond($db->query("SELECT id, course, title, resource_type, url, created_at FROM proposals WHERE status = 'pending' ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC));
@@ -87,7 +87,7 @@ if ($path === 'api/proposals' && $method === 'POST') {
     $body = jsonBody();
     foreach (['course', 'title', 'type', 'url'] as $field) if (!isset($body[$field]) || trim((string)$body[$field]) === '') respond(['error' => "$field requis"], 422);
     if (!filter_var($body['url'], FILTER_VALIDATE_URL) || !in_array(parse_url($body['url'], PHP_URL_SCHEME), ['http', 'https'], true)) respond(['error' => 'URL invalide'], 422);
-    $stmt = $db->prepare('INSERT INTO proposals (course, title, resource_type, url, created_at) VALUES (?, ?, ?, ?, datetime("now"))');
+    $stmt = $db->prepare('INSERT INTO proposals (course, title, resource_type, url) VALUES (?, ?, ?, ?)');
     $stmt->execute([trim($body['course']), trim($body['title']), trim($body['type']), trim($body['url'])]);
     respond(['ok' => true], 201);
 }
@@ -99,9 +99,9 @@ if (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'proposals' && $
     if ($status === 'approved') {
         $proposal = $db->prepare('SELECT course, title, resource_type, url FROM proposals WHERE id = ?'); $proposal->execute([$id]); $item = $proposal->fetch(PDO::FETCH_ASSOC);
         if ($item) {
-            $db->prepare('INSERT OR IGNORE INTO courses (name) VALUES (?)')->execute([$item['course']]);
+            $db->prepare('INSERT INTO courses (name) VALUES (?) ON CONFLICT (name) DO NOTHING')->execute([$item['course']]);
             $resource = ['id' => (string)time() . $id, 'title' => $item['title'], 'course' => $item['course'], 'type' => $item['resource_type'], 'url' => $item['url']];
-            $db->prepare('INSERT OR REPLACE INTO resources (id, payload) VALUES (?, ?)')->execute([$resource['id'], json_encode($resource)]);
+            $db->prepare('INSERT INTO resources (id, payload) VALUES (?, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload')->execute([$resource['id'], json_encode($resource)]);
         }
     }
     $db->commit(); respond(['ok' => true]);
