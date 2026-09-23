@@ -1,5 +1,15 @@
 # CampusFlow
 
+## Démarrer simplement en local (sans PHP)
+
+Si tu veux seulement ouvrir l’espace d’Antonin sur ton ordinateur, Node.js suffit :
+
+1. Double-clique sur `start-campusflow.cmd`.
+2. Dans la page qui s’ouvre, clique sur **Connexion rapide avec antonin**.
+3. Les tâches et réglages sont enregistrés dans le navigateur.
+
+Ce mode est local uniquement, ne demande ni PHP, ni Render, ni `DATABASE_URL`. La session est réinitialisée quand le serveur est redémarré. Pour un accès partagé entre plusieurs personnes, utilise la configuration Render + Supabase décrite ci-dessous.
+
 ## Publier le site (comme une recette)
 
 Le site est déjà préparé pour **Render + Supabase**. Fais ces étapes dans l'ordre.
