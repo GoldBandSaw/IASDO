@@ -1,11 +1,69 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'db.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
 
 $db = database();
 $path = trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '/', '/');
 $parts = $path === '' ? [] : explode('/', $path);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+if ($path === 'api/auth/me' && $method === 'GET') {
+    $user = currentUser();
+    if (!$user) respond(['authenticated' => false], 401);
+    respond(['authenticated' => true, 'user' => $user]);
+}
+if ($path === 'api/auth/login' && $method === 'POST') {
+    $body = jsonBody();
+    $username = strtolower(trim((string)($body['username'] ?? '')));
+    $password = (string)($body['password'] ?? '');
+    $stmt = $db->prepare('SELECT username, display_name, password_hash, setup_used FROM users WHERE username = ?');
+    $stmt->execute([$username]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$user || !$user['setup_used'] || !password_verify($password, $user['password_hash'])) respond(['error' => 'Identifiant ou mot de passe incorrect.'], 401);
+    startSession();
+    session_regenerate_id(true);
+    $_SESSION['username'] = $user['username'];
+    $_SESSION['authenticated_at'] = time();
+    respond(['authenticated' => true, 'user' => ['username' => $user['username'], 'display_name' => $user['display_name']]]);
+}
+if ($path === 'api/auth/setup' && $method === 'POST') {
+    $body = jsonBody();
+    $username = strtolower(trim((string)($body['username'] ?? '')));
+    $token = trim((string)($body['token'] ?? ''));
+    $password = (string)($body['password'] ?? '');
+    if (!passwordIsValid($password)) respond(['error' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre et un chiffre.'], 422);
+    $stmt = $db->prepare('SELECT username FROM users WHERE username = ? AND setup_used = 0 AND setup_token_hash = ?');
+    $stmt->execute([$username, hash('sha256', $token)]);
+    if (!$stmt->fetch()) respond(['error' => 'Lien de première connexion invalide ou déjà utilisé.'], 401);
+    $update = $db->prepare('UPDATE users SET password_hash = ?, setup_token_hash = "", setup_used = 1 WHERE username = ?');
+    $update->execute([password_hash($password, PASSWORD_DEFAULT), $username]);
+    respond(['ok' => true]);
+}
+if ($path === 'api/auth/password' && $method === 'PUT') {
+    $user = requireUser();
+    $body = jsonBody();
+    $password = (string)($body['password'] ?? '');
+    if (!passwordIsValid($password)) respond(['error' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre et un chiffre.'], 422);
+    $stmt = $db->prepare('UPDATE users SET password_hash = ? WHERE username = ?');
+    $stmt->execute([password_hash($password, PASSWORD_DEFAULT), $user['username']]);
+    respond(['ok' => true]);
+}
+if ($path === 'api/auth/profile' && $method === 'PUT') {
+    $user = requireUser();
+    $name = trim((string)(jsonBody()['displayName'] ?? ''));
+    if ($name === '' || mb_strlen($name) > 80) respond(['error' => 'Nom invalide.'], 422);
+    $stmt = $db->prepare('UPDATE users SET display_name = ? WHERE username = ?');
+    $stmt->execute([$name, $user['username']]);
+    respond(['ok' => true, 'display_name' => $name]);
+}
+if ($path === 'api/auth/logout' && $method === 'POST') {
+    startSession();
+    $_SESSION = [];
+    session_destroy();
+    respond(['ok' => true]);
+}
+requireUser();
 
 if ($path === 'api/state' && $method === 'GET') {
     $tasks = array_map(fn($row) => json_decode($row['payload'], true), $db->query('SELECT payload FROM tasks')->fetchAll(PDO::FETCH_ASSOC));
