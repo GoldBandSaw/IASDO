@@ -15,26 +15,24 @@ types.setTypeParser(20, value => parseInt(value, 10));
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
+const localMode = !process.env.DATABASE_URL;
+const localSessions = new Set();
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8"
 };
 
-if (!process.env.DATABASE_URL) {
-  console.error("Variable d'environnement DATABASE_URL manquante. Renseigne la chaîne de connexion Postgres (Supabase) avant de démarrer le serveur.");
-  process.exit(1);
-}
-
 // Supabase impose une connexion chiffrée. On désactive la vérification stricte
 // du certificat (courant avec le pooler Supabase) sauf en local.
 const isLocalDb = /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL);
-const pool = new Pool({
+const pool = localMode ? null : new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: isLocalDb ? false : { rejectUnauthorized: false }
 });
 
 async function initDatabase() {
+  if (localMode) return;
   await pool.query(`CREATE TABLE IF NOT EXISTS tasks (
     id BIGINT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -52,6 +50,19 @@ async function initDatabase() {
     dark_mode BOOLEAN NOT NULL DEFAULT FALSE,
     calendar_url TEXT NOT NULL DEFAULT ''
   )`);
+}
+
+function cookies(request) {
+  return Object.fromEntries((request.headers.cookie || "").split(";").filter(Boolean).map(cookie => {
+    const [name, ...value] = cookie.trim().split("=");
+    return [name, decodeURIComponent(value.join("="))];
+  }));
+}
+
+function localUser(request) {
+  return localSessions.has(cookies(request).campusflow_session)
+    ? { username: "antonin", display_name: "antonin" }
+    : null;
 }
 
 function send(response, status, body, contentType = "text/plain; charset=utf-8") {
@@ -101,6 +112,36 @@ async function getState(response) {
 
 async function handleApi(request, response, requestUrl) {
   const pathname = requestUrl.pathname;
+
+  if (localMode && pathname === "/api/auth/login" && request.method === "POST") {
+    const body = await readBody(request);
+    if (String(body.username || "").trim().toLowerCase() !== "antonin") {
+      return json(response, 401, { error: "En mode local, seul le compte antonin est disponible." });
+    }
+    const sessionId = require("crypto").randomBytes(24).toString("hex");
+    localSessions.add(sessionId);
+    response.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Set-Cookie": `campusflow_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax`,
+      "Cache-Control": "no-store"
+    });
+    return response.end(JSON.stringify({ authenticated: true, user: { username: "antonin", display_name: "antonin" } }));
+  }
+
+  if (localMode && pathname === "/api/auth/me" && request.method === "GET") {
+    const user = localUser(request);
+    return user ? json(response, 200, { authenticated: true, user }) : json(response, 401, { authenticated: false });
+  }
+
+  if (localMode && pathname === "/api/auth/logout" && request.method === "POST") {
+    localSessions.delete(cookies(request).campusflow_session);
+    return json(response, 200, { ok: true });
+  }
+
+  if (localMode && pathname === "/api/state" && request.method === "GET") {
+    if (!localUser(request)) return json(response, 401, { error: "Authentification requise." });
+    return json(response, 200, { tasks: [], settings: null, courses: [], resources: [] });
+  }
 
   if (pathname === "/api/state" && request.method === "GET") {
     return getState(response);
@@ -203,7 +244,12 @@ function proxyCalendar(response, target) {
   });
 }
 
-function serveFile(response, pathname) {
+function serveFile(request, response, pathname) {
+  if (localMode && pathname !== "/login.html" && pathname !== "/auth.js" && pathname !== "/auth.css" &&
+      pathname !== "/modern.css" && (pathname === "/" || pathname.endsWith(".html")) && !localUser(request)) {
+    response.writeHead(302, { Location: "/login.html" });
+    return response.end();
+  }
   const requested = pathname === "/" ? "/index.html" : pathname;
   const filePath = path.resolve(ROOT, `.${requested}`);
   if (!filePath.startsWith(ROOT) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
@@ -226,13 +272,15 @@ const server = http.createServer((request, response) => {
     if (!target) return send(response, 400, "Paramètre url manquant.");
     return proxyCalendar(response, target);
   }
-  serveFile(response, requestUrl.pathname);
+  serveFile(request, response, requestUrl.pathname);
 });
 
 initDatabase()
   .then(() => {
-    server.listen(PORT, "0.0.0.0", () => {
-      console.log(`CampusFlow est disponible sur http://localhost:${PORT}`);
+    server.listen(PORT, localMode ? "127.0.0.1" : "0.0.0.0", () => {
+      console.log(localMode
+        ? `Mode local actif : connecte-toi avec le bouton antonin sur http://localhost:${PORT}`
+        : `CampusFlow est disponible sur http://localhost:${PORT}`);
     });
   })
   .catch(error => {
