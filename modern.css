@@ -104,6 +104,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
 .sidebar-tip strong{font-size:13px;color:#F6E3C0}
 .sidebar-tip p{font-size:12px;line-height:1.55;margin:8px 0 0;color:#C9B692}
 .sidebar-footer{color:var(--on-dark-faint);font-size:11px;line-height:1.5}
+.account-card{display:flex;align-items:center;gap:10px;margin:18px 4px 0;padding:10px;border:1px solid rgba(255,255,255,.1);border-radius:12px;color:#fff;text-decoration:none;background:rgba(255,255,255,.05);transition:background .2s ease,border-color .2s ease}
+.account-card:hover{background:rgba(255,255,255,.1);border-color:rgba(239,173,74,.35)}
+.avatar{display:grid;place-items:center;width:31px;height:31px;border-radius:50%;background:var(--marigold);color:var(--cover);font:700 13px "Fraunces",serif}
+.account-copy{min-width:0;flex:1}.account-copy strong,.account-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.account-copy strong{font-size:11px;color:#f5f0e7}.account-copy small{margin-top:2px;color:var(--on-dark-muted);font-size:10px}.account-arrow{color:var(--on-dark)}
 
 /* ---------- Page canvas (the paper) ---------- */
 .main-content,.page-content{
@@ -246,6 +250,9 @@ input[type="checkbox"]{position:absolute;opacity:0;width:1px;height:1px;margin:0
 
 /* ---------- Progress ring ---------- */
 .progress-ring{background:conic-gradient(var(--green) var(--progress,0%),#E9EAF0 0)}
+.workspace-strip{display:flex;align-items:center;justify-content:space-between;gap:24px;margin:0 0 18px;padding:24px 26px;border-radius:var(--radius);background:linear-gradient(110deg,#262f58,#303d70);color:#fff;box-shadow:var(--shadow-soft);overflow:hidden;position:relative}
+.workspace-strip::after{content:"";position:absolute;width:210px;height:210px;border-radius:50%;right:15%;top:-140px;border:1px solid rgba(239,173,74,.28);box-shadow:0 0 0 22px rgba(239,173,74,.06),0 0 0 44px rgba(239,173,74,.04)}
+.workspace-intro{display:flex;align-items:flex-start;gap:15px;position:relative;z-index:1}.workspace-icon{display:grid;place-items:center;width:37px;height:37px;border-radius:11px;background:rgba(239,173,74,.16);color:var(--on-dark);font-size:19px}.workspace-intro .eyebrow{margin:0 0 5px;color:var(--on-dark)}.workspace-intro h2{margin:0 0 5px;font:600 18px "Fraunces",serif;color:#fff}.workspace-intro p:last-child{margin:0;color:#c4cce5;font-size:12px;line-height:1.5}.workspace-link{position:relative;z-index:1;flex:0 0 auto;color:var(--on-dark);font-size:12px;font-weight:700;text-decoration:none}.workspace-link span{margin-left:6px;font-size:16px}.privacy-card{display:flex;align-items:center;gap:14px;padding:17px 20px;margin-bottom:25px;border:1px solid #d8e9df;border-radius:var(--radius);background:#f4fbf7;color:#215f46}.privacy-badge{display:grid;place-items:center;flex:0 0 auto;width:36px;height:36px;border-radius:11px;background:#dff3e8;color:var(--green)}.privacy-badge svg{width:20px;height:20px}.privacy-card strong{font-size:13px}.privacy-card p{margin:4px 0 0;color:#5e806e;font-size:11px;line-height:1.4}.privacy-card a{margin-left:auto;flex:0 0 auto;color:#267351;font-size:11px;font-weight:700;text-decoration:none}.privacy-card a span{font-size:15px;margin-left:5px}
 
 /* ---------- Refined timetable typography and spacing ---------- */
 .timetable-page-grid{align-items:stretch}
@@ -269,6 +276,9 @@ input[type="checkbox"]{position:absolute;opacity:0;width:1px;height:1px;margin:0
   .panel,.page-card{border-radius:15px;padding:20px}
   .sidebar{padding:17px}
   .primary-button{width:100%}
+  .account-card{margin-top:14px}
+  .workspace-strip{display:block;padding:21px}.workspace-link{display:inline-block;margin:18px 0 0 52px}
+  .privacy-card{align-items:flex-start;padding:16px}.privacy-card a{display:none}
   .form-row{grid-template-columns:1fr}
   .timetable-page-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .day-events{padding:7px}

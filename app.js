@@ -17,6 +17,7 @@ let courseResources = loadCourseResources();
 let currentFilter = "open";
 let timetableEvents = [];
 let settings = loadSettings();
+let currentUser = null;
 let weekOffset = 0;
 const apiEnabled = window.location.protocol !== "file:";
 
@@ -73,6 +74,8 @@ async function apiRequest(path, method, body) {
 async function syncInitialState() {
   if (!apiEnabled) return;
   try {
+    const auth = await apiRequest("/api/auth/me", "GET");
+    currentUser = auth.user;
     const state = await apiRequest("/api/state", "GET");
     if (state.tasks.length) tasks = state.tasks;
     else for (const task of tasks) await apiRequest("/api/tasks", "POST", task);
@@ -132,6 +135,10 @@ function render() {
   const name = [settings.firstName, settings.lastName].filter(Boolean).join(" ") || "étudiant·e";
   const studentName = document.querySelector("#student-name");
   if (studentName) studentName.textContent = name;
+  const accountName = document.querySelector("#sidebar-account-name");
+  if (accountName) accountName.textContent = currentUser?.display_name || (name === "étudiant·e" ? "Mon espace" : name);
+  const avatar = document.querySelector("#sidebar-avatar");
+  if (avatar) avatar.textContent = (currentUser?.display_name || settings.firstName || "É").charAt(0).toUpperCase();
   if (page === "timetable") { renderTimetable(); return; }
   if (page === "settings") { renderSettings(); return; }
   if (page === "tasks") {
@@ -169,6 +176,8 @@ function renderSettings() {
   document.querySelector("#last-name").value = settings.lastName;
   document.querySelector("#dark-mode").checked = settings.darkMode;
   document.querySelector("#saved-calendar-url").value = localStorage.getItem(CALENDAR_URL_KEY) || "";
+  const accountName = document.querySelector("#account-name");
+  if (accountName) accountName.value = currentUser?.display_name || "";
 }
 function renderTimetable() {
   const grid = document.querySelector("#timetable-grid");
@@ -427,6 +436,31 @@ if (settingsForm) settingsForm.addEventListener("submit", event => {
     settingsStatus.textContent = "Paramètres enregistrés.";
   }
   showToast("Paramètres enregistrés");
+});
+const accountForm = document.querySelector("#account-form");
+if (accountForm) accountForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const status = document.querySelector("#account-status");
+  const displayName = document.querySelector("#account-name").value.trim();
+  const password = document.querySelector("#account-password").value;
+  try {
+    if (displayName) {
+      const response = await fetch("/api/auth/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName }) });
+      if (!response.ok) throw new Error((await response.json()).error || "Nom invalide.");
+      currentUser.display_name = displayName;
+    }
+    if (password) {
+      const response = await fetch("/api/auth/password", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+      if (!response.ok) throw new Error((await response.json()).error || "Mot de passe invalide.");
+    }
+    document.querySelector("#account-password").value = "";
+    render();
+    status.className = "calendar-status success";
+    status.textContent = "Compte mis à jour.";
+  } catch (error) {
+    status.className = "calendar-status error";
+    status.textContent = error.message;
+  }
 });
 const darkMode = document.querySelector("#dark-mode");
 if (darkMode) darkMode.addEventListener("change", () => {
