@@ -1,15 +1,5 @@
 # CampusFlow
 
-## Démarrer simplement en local (sans PHP)
-
-Si tu veux seulement ouvrir l’espace d’Antonin sur ton ordinateur, Node.js suffit :
-
-1. Double-clique sur `start-campusflow.cmd`.
-2. Dans la page qui s’ouvre, clique sur **Connexion rapide avec antonin**.
-3. Les tâches et réglages sont enregistrés dans le navigateur.
-
-Ce mode est local uniquement, ne demande ni PHP, ni Render, ni `DATABASE_URL`. La session est réinitialisée quand le serveur est redémarré. Pour un accès partagé entre plusieurs personnes, utilise la configuration Render + Supabase décrite ci-dessous.
-
 ## Publier le site (comme une recette)
 
 Le site est déjà préparé pour **Render + Supabase**. Fais ces étapes dans l'ordre.
@@ -64,32 +54,11 @@ Tu dois voir les tables `users`, `sessions`, `tasks`, `settings`, `courses`, `re
 
 Si tu vois une erreur, retourne dans Render et vérifie que la variable s'appelle bien `DATABASE_URL`, sans espace.
 
-### 5. Créer les dix liens de première connexion
+### 5. Première connexion des dix étudiants
 
-Les dix comptes existent déjà. Personne ne peut créer un onzième compte.
+Les dix comptes sont créés automatiquement par le site au premier chargement. Aucun shell Render ni PHP local n'est nécessaire.
 
-Sur ton ordinateur, ouvre PowerShell dans le dossier du projet et écris :
-
-```powershell
-$env:DATABASE_URL="COLLE ICI LA LONGUE LIGNE SUPABASE"
-php provision.php "https://campusflow-xxxx.onrender.com"
-```
-
-Remplace `COLLE ICI LA LONGUE LIGNE SUPABASE` et l'adresse Render par les vraies valeurs.
-
-Le programme affiche dix liens. Copie chaque lien et envoie-le uniquement à la bonne personne. Chaque lien ne fonctionne qu'une seule fois.
-
-### 6. Première connexion d'un étudiant
-
-1. L'étudiant clique sur son lien.
-2. Il choisit un mot de passe d'au moins 10 caractères avec une lettre et un chiffre.
-3. Il clique sur **Activer mon compte**.
-4. Il ouvre ensuite l'adresse Render.
-5. Il écrit son identifiant et son mot de passe.
-
-Les identifiants sont :
-
-`antonin`, `lucas`, `aymen`, `youssef`, `maelle`, `jason`, `nolann`, `leon`, `roman`, `cedric`
+Les identifiants sont `antonin`, `lucas`, `aymen`, `youssef`, `maelle`, `jason`, `nolann`, `leon`, `roman` et `cedric`. Le mot de passe initial est `CampusFlow2026!` pour chacun. Chaque étudiant peut ensuite le remplacer dans **Paramètres**.
 
 Un étudiant peut changer son nom affiché et son mot de passe dans **Paramètres**. Son identifiant ne change jamais.
 

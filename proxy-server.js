@@ -2,6 +2,7 @@ require("dotenv").config();
 const http = require("http");
 const https = require("https");
 const fs = require("fs");
+const crypto = require("crypto");
 const path = require("path");
 const { URL } = require("url");
 const { Pool, types } = require("pg");
@@ -15,8 +16,6 @@ types.setTypeParser(20, value => parseInt(value, 10));
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-const localMode = !process.env.DATABASE_URL;
-const localSessions = new Set();
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -32,8 +31,7 @@ const pool = localMode ? null : new Pool({
 });
 
 async function initDatabase() {
-  if (localMode) return;
-  await pool.query(`CREATE TABLE IF NOT EXISTS tasks (
+    await pool.query(`CREATE TABLE IF NOT EXISTS tasks (
     id BIGINT PRIMARY KEY,
     title TEXT NOT NULL,
     course TEXT NOT NULL,
@@ -50,6 +48,31 @@ async function initDatabase() {
     dark_mode BOOLEAN NOT NULL DEFAULT FALSE,
     calendar_url TEXT NOT NULL DEFAULT ''
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL DEFAULT '',
+    setup_token_hash TEXT NOT NULL DEFAULT '',
+    setup_used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    last_activity BIGINT NOT NULL
+  )`);
+  const initialPassword = process.env.INITIAL_PASSWORD || "CampusFlow2026!";
+  const passwordHash = await hashPassword(initialPassword);
+  for (const username of ["antonin", "lucas", "aymen", "youssef", "maelle", "jason", "nolann", "leon", "roman", "cedric"]) {
+    await pool.query(
+      `INSERT INTO users (username, display_name, password_hash, setup_used)
+       VALUES ($1, $1, $2, TRUE)
+       ON CONFLICT (username) DO UPDATE SET
+         password_hash = CASE WHEN users.password_hash = '' THEN EXCLUDED.password_hash ELSE users.password_hash END,
+         setup_used = CASE WHEN users.password_hash = '' THEN TRUE ELSE users.setup_used END`,
+      [username, passwordHash]
+    );
+  }
 }
 
 function cookies(request) {
@@ -59,10 +82,46 @@ function cookies(request) {
   }));
 }
 
-function localUser(request) {
-  return localSessions.has(cookies(request).campusflow_session)
-    ? { username: "antonin", display_name: "antonin" }
-    : null;
+function hashPassword(password) {
+  return new Promise((resolve, reject) => {
+    crypto.randomBytes(16, (error, salt) => {
+      if (error) return reject(error);
+      crypto.scrypt(password, salt, 64, (scryptError, derivedKey) => {
+        if (scryptError) return reject(scryptError);
+        resolve(`scrypt$${salt.toString("hex")}$${derivedKey.toString("hex")}`);
+      });
+    });
+  });
+}
+
+function verifyPassword(password, storedHash) {
+  const [, saltHex, hashHex] = String(storedHash || "").split("$");
+  if (!saltHex || !hashHex) return Promise.resolve(false);
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, Buffer.from(saltHex, "hex"), 64, (error, derivedKey) => {
+      if (error) return reject(error);
+      const expected = Buffer.from(hashHex, "hex");
+      resolve(expected.length === derivedKey.length && crypto.timingSafeEqual(expected, derivedKey));
+    });
+  });
+}
+
+async function currentUser(request) {
+  const sessionId = cookies(request).campusflow_session;
+  if (!sessionId) return null;
+  const result = await pool.query(
+    "SELECT data FROM sessions WHERE id = $1 AND last_activity >= $2",
+    [sessionId, Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60]
+  );
+  if (!result.rows[0]) return null;
+  const session = JSON.parse(result.rows[0].data);
+  const user = await pool.query("SELECT username, display_name FROM users WHERE username = $1", [session.username]);
+  return user.rows[0] || null;
+}
+
+function setSessionCookie(response, request, sessionId) {
+  const secure = request.headers["x-forwarded-proto"] === "https";
+  response.setHeader("Set-Cookie", `campusflow_session=${sessionId}; Path=/; Max-Age=${7 * 24 * 60 * 60}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`);
 }
 
 function send(response, status, body, contentType = "text/plain; charset=utf-8") {
@@ -113,35 +172,44 @@ async function getState(response) {
 async function handleApi(request, response, requestUrl) {
   const pathname = requestUrl.pathname;
 
-  if (localMode && pathname === "/api/auth/login" && request.method === "POST") {
+  if (pathname === "/api/auth/login" && request.method === "POST") {
     const body = await readBody(request);
-    if (String(body.username || "").trim().toLowerCase() !== "antonin") {
-      return json(response, 401, { error: "En mode local, seul le compte antonin est disponible." });
+    const username = String(body.username || "").trim().toLowerCase();
+    const result = await pool.query("SELECT username, display_name, password_hash FROM users WHERE username = $1", [username]);
+    if (!result.rows[0] || !(await verifyPassword(String(body.password || ""), result.rows[0].password_hash))) {
+      return json(response, 401, { error: "Identifiant ou mot de passe incorrect." });
     }
-    const sessionId = require("crypto").randomBytes(24).toString("hex");
-    localSessions.add(sessionId);
-    response.writeHead(200, {
-      "Content-Type": "application/json; charset=utf-8",
-      "Set-Cookie": `campusflow_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax`,
-      "Cache-Control": "no-store"
-    });
-    return response.end(JSON.stringify({ authenticated: true, user: { username: "antonin", display_name: "antonin" } }));
+    const sessionId = crypto.randomBytes(24).toString("hex");
+    await pool.query("INSERT INTO sessions (id, data, last_activity) VALUES ($1, $2, $3)", [
+      sessionId, JSON.stringify({ username }), Math.floor(Date.now() / 1000)
+    ]);
+    setSessionCookie(response, request, sessionId);
+    return json(response, 200, { authenticated: true, user: { username, display_name: result.rows[0].display_name } });
   }
 
-  if (localMode && pathname === "/api/auth/me" && request.method === "GET") {
-    const user = localUser(request);
+  if (pathname === "/api/auth/me" && request.method === "GET") {
+    const user = await currentUser(request);
     return user ? json(response, 200, { authenticated: true, user }) : json(response, 401, { authenticated: false });
   }
 
-  if (localMode && pathname === "/api/auth/logout" && request.method === "POST") {
-    localSessions.delete(cookies(request).campusflow_session);
+  if (pathname === "/api/auth/logout" && request.method === "POST") {
+    await pool.query("DELETE FROM sessions WHERE id = $1", [cookies(request).campusflow_session || ""]);
     return json(response, 200, { ok: true });
   }
 
-  if (localMode && pathname === "/api/state" && request.method === "GET") {
-    if (!localUser(request)) return json(response, 401, { error: "Authentification requise." });
-    return json(response, 200, { tasks: [], settings: null, courses: [], resources: [] });
+  if (pathname === "/api/auth/password" && request.method === "PUT") {
+    const user = await currentUser(request);
+    if (!user) return json(response, 401, { error: "Authentification requise." });
+    const body = await readBody(request);
+    if (String(body.password || "").length < 10 || !/[A-Za-z]/.test(body.password) || !/\d/.test(body.password)) {
+      return json(response, 422, { error: "Le mot de passe doit contenir au moins 10 caractères, une lettre et un chiffre." });
+    }
+    await pool.query("UPDATE users SET password_hash = $1 WHERE username = $2", [await hashPassword(body.password), user.username]);
+    return json(response, 200, { ok: true });
   }
+
+  const user = await currentUser(request);
+  if (!user) return json(response, 401, { error: "Authentification requise." });
 
   if (pathname === "/api/state" && request.method === "GET") {
     return getState(response);
@@ -244,9 +312,9 @@ function proxyCalendar(response, target) {
   });
 }
 
-function serveFile(request, response, pathname) {
-  if (localMode && pathname !== "/login.html" && pathname !== "/auth.js" && pathname !== "/auth.css" &&
-      pathname !== "/modern.css" && (pathname === "/" || pathname.endsWith(".html")) && !localUser(request)) {
+async function serveFile(request, response, pathname) {
+  if (pathname !== "/login.html" && pathname !== "/auth.js" && pathname !== "/auth.css" &&
+      pathname !== "/modern.css" && (pathname === "/" || pathname.endsWith(".html")) && !(await currentUser(request))) {
     response.writeHead(302, { Location: "/login.html" });
     return response.end();
   }
@@ -272,15 +340,13 @@ const server = http.createServer((request, response) => {
     if (!target) return send(response, 400, "Paramètre url manquant.");
     return proxyCalendar(response, target);
   }
-  serveFile(request, response, requestUrl.pathname);
+  serveFile(request, response, requestUrl.pathname).catch(error => send(response, 500, error.message));
 });
 
 initDatabase()
   .then(() => {
-    server.listen(PORT, localMode ? "127.0.0.1" : "0.0.0.0", () => {
-      console.log(localMode
-        ? `Mode local actif : connecte-toi avec le bouton antonin sur http://localhost:${PORT}`
-        : `CampusFlow est disponible sur http://localhost:${PORT}`);
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`CampusFlow est disponible sur http://localhost:${PORT}`);
     });
   })
   .catch(error => {

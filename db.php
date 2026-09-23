@@ -22,9 +22,17 @@ function database(): PDO {
     $db->exec('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, display_name TEXT NOT NULL, password_hash TEXT NOT NULL DEFAULT \'\', setup_token_hash TEXT NOT NULL DEFAULT \'\', setup_used BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     $db->exec('CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, data TEXT NOT NULL, last_activity BIGINT NOT NULL)');
     $users = ['antonin', 'lucas', 'aymen', 'youssef', 'maelle', 'jason', 'nolann', 'leon', 'roman', 'cedric'];
-    $insert = $db->prepare('INSERT INTO users (username, display_name, setup_token_hash) VALUES (?, ?, ?) ON CONFLICT (username) DO NOTHING');
+    $initialPassword = getenv('INITIAL_PASSWORD') ?: 'CampusFlow2026!';
+    $initialHash = password_hash($initialPassword, PASSWORD_DEFAULT);
+    $insert = $db->prepare('
+        INSERT INTO users (username, display_name, password_hash, setup_used)
+        VALUES (?, ?, ?, TRUE)
+        ON CONFLICT (username) DO UPDATE SET
+            password_hash = CASE WHEN users.password_hash = \'\' THEN EXCLUDED.password_hash ELSE users.password_hash END,
+            setup_used = CASE WHEN users.password_hash = \'\' THEN TRUE ELSE users.setup_used END
+    ');
     foreach ($users as $username) {
-        $insert->execute([$username, $username, hash('sha256', bin2hex(random_bytes(32)))]);
+        $insert->execute([$username, $username, $initialHash]);
     }
     return $db;
 }
