@@ -20,6 +20,7 @@ function database(): PDO {
     $db->exec('CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, payload JSONB NOT NULL)');
     $db->exec('CREATE TABLE IF NOT EXISTS proposals (id BIGSERIAL PRIMARY KEY, course TEXT NOT NULL, title TEXT NOT NULL, resource_type TEXT NOT NULL, url TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'pending\', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     $db->exec('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, display_name TEXT NOT NULL, password_hash TEXT NOT NULL DEFAULT \'\', setup_token_hash TEXT NOT NULL DEFAULT \'\', setup_used BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
+    $db->exec('CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, data TEXT NOT NULL, last_activity BIGINT NOT NULL)');
     $users = ['antonin', 'lucas', 'aymen', 'youssef', 'maelle', 'jason', 'nolann', 'leon', 'roman', 'cedric'];
     $insert = $db->prepare('INSERT INTO users (username, display_name, setup_token_hash) VALUES (?, ?, ?) ON CONFLICT (username) DO NOTHING');
     foreach ($users as $username) {
