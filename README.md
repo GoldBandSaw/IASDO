@@ -33,6 +33,8 @@ Ne mets jamais cette ligne dans un fichier GitHub, un message public ou du code 
 
 Attends que Render affiche **Live**. Si le premier chargement est lent, attends une minute : le serveur gratuit se réveille.
 
+Dans **Environment**, ajoute également `ADMIN_PASSWORD` avec le mot de passe du compte `admin`, ainsi que `COMMON_CALENDAR_URL` avec le lien iCalendar commun de l'Université d'Orléans. Le compte admin est créé automatiquement au premier chargement et peut valider ou refuser les propositions depuis **Administration**.
+
 ### 3. Ouvrir Supabase et mettre le schéma en place
 
 1. Dans Supabase, clique sur **SQL Editor**.

@@ -16,6 +16,7 @@ types.setTypeParser(20, value => parseInt(value, 10));
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
+const localMode = false;
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",

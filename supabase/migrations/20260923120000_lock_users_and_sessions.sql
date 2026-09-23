@@ -20,3 +20,5 @@ CREATE TABLE IF NOT EXISTS public.sessions (
 );
 
 ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'student';
