@@ -17,7 +17,7 @@ if ($path === 'api/auth/login' && $method === 'POST') {
     $body = jsonBody();
     $username = strtolower(trim((string)($body['username'] ?? '')));
     $password = (string)($body['password'] ?? '');
-    $stmt = $db->prepare('SELECT username, display_name, password_hash, setup_used FROM users WHERE username = ?');
+    $stmt = $db->prepare('SELECT username, display_name, role, password_hash, setup_used FROM users WHERE username = ?');
     $stmt->execute([$username]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$user || !$user['setup_used'] || !password_verify($password, $user['password_hash'])) respond(['error' => 'Identifiant ou mot de passe incorrect.'], 401);
@@ -25,7 +25,7 @@ if ($path === 'api/auth/login' && $method === 'POST') {
     session_regenerate_id(true);
     $_SESSION['username'] = $user['username'];
     $_SESSION['authenticated_at'] = time();
-    respond(['authenticated' => true, 'user' => ['username' => $user['username'], 'display_name' => $user['display_name']]]);
+    respond(['authenticated' => true, 'user' => ['username' => $user['username'], 'display_name' => $user['display_name'], 'role' => $user['role']]]);
 }
 if ($path === 'api/auth/setup' && $method === 'POST') {
     $body = jsonBody();
@@ -62,6 +62,24 @@ if ($path === 'api/auth/logout' && $method === 'POST') {
     respond(['ok' => true]);
 }
 requireUser();
+
+if ($path === 'api/timetable' && $method === 'GET') {
+    $url = getenv('COMMON_CALENDAR_URL') ?: 'https://aderead.univ-orleans.fr/jsp/custom/modules/plannings/anonymous_cal.jsp?data=4cd3f88e35ea1920bb2fb34fc8572ff515958a020261fadcd06b8f9f1ea94c625cb13e04815b0b9371306a590364622aba7aca821742c72906697de27ff79d4cf1f995a532c8174ffc4cd3c5822313a409547008355ac6ff85c3d0ba2e9efbe6,1';
+    $context = stream_context_create(['http' => [
+        'timeout' => 15,
+        'ignore_errors' => true,
+        'header' => "User-Agent: CampusFlow/1.0\r\nAccept: text/calendar,text/plain\r\n"
+    ]]);
+    $ics = @file_get_contents($url, false, $context);
+    $status = $http_response_header[0] ?? '';
+    if ($ics === false || !preg_match('/\s2\d\d\s/', $status)) {
+        respond(['error' => 'Le calendrier universitaire est momentanément indisponible.'], 502);
+    }
+    header('Content-Type: text/calendar; charset=utf-8');
+    header('Cache-Control: public, max-age=300');
+    echo $ics;
+    exit;
+}
 
 if ($path === 'api/state' && $method === 'GET') {
     $tasks = array_map(fn($row) => json_decode($row['payload'], true), $db->query('SELECT payload FROM tasks')->fetchAll(PDO::FETCH_ASSOC));
@@ -111,6 +129,7 @@ if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'resources' && $
     respond(['ok' => true]);
 }
 if ($path === 'api/proposals' && $method === 'GET') {
+    requireAdmin();
     respond($db->query("SELECT id, course, title, resource_type, url, created_at FROM proposals WHERE status = 'pending' ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC));
 }
 if ($path === 'api/proposals' && $method === 'POST') {
@@ -122,6 +141,7 @@ if ($path === 'api/proposals' && $method === 'POST') {
     respond(['ok' => true], 201);
 }
 if (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'proposals' && $method === 'POST' && in_array($parts[3], ['approve', 'reject'], true)) {
+    requireAdmin();
     $id = filter_var($parts[2], FILTER_VALIDATE_INT); if (!$id) respond(['error' => 'id invalide'], 422);
     $status = $parts[3] === 'approve' ? 'approved' : 'rejected';
     $db->beginTransaction();

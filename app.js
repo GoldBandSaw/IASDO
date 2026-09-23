@@ -81,6 +81,7 @@ async function syncInitialState() {
   try {
     const auth = await apiRequest("/api/auth/me", "GET");
     currentUser = auth.user;
+    ensureAdminNav();
     const state = await apiRequest("/api/state", "GET");
     if (state.tasks.length) tasks = state.tasks;
     else for (const task of tasks) await apiRequest("/api/tasks", "POST", task);
@@ -104,13 +105,8 @@ async function syncInitialState() {
     console.error("Synchronisation de la base impossible.", error);
   }
 }
-function calendarProxyUrl(url) {
-  const encodedUrl = encodeURIComponent(url);
-  const base = window.location.protocol === "file:" ? "http://localhost:3000" : "";
-  return `${base}/api/calendar?url=${encodedUrl}`;
-}
-function fetchCalendar(url) {
-  return fetch(calendarProxyUrl(url), { cache: "no-store" });
+function fetchCalendar() {
+  return fetch("/api/timetable", { cache: "no-store" });
 }
 function dateFromString(value) { return new Date(`${value}T12:00:00`); }
 function daysUntil(value) {
@@ -180,7 +176,11 @@ function renderSettings() {
   document.querySelector("#first-name").value = settings.firstName;
   document.querySelector("#last-name").value = settings.lastName;
   document.querySelector("#dark-mode").checked = settings.darkMode;
-  document.querySelector("#saved-calendar-url").value = localStorage.getItem(CALENDAR_URL_KEY) || "";
+  const calendarSetting = document.querySelector("#saved-calendar-url");
+  if (calendarSetting) {
+    calendarSetting.value = "Planning commun de la promotion";
+    calendarSetting.readOnly = true;
+  }
   const accountName = document.querySelector("#account-name");
   if (accountName) accountName.value = currentUser?.display_name || "";
 }
@@ -312,6 +312,15 @@ function ensureCoursesNav() {
   link.innerHTML = '<span class="icon">▣</span> Mes cours';
   nav.insertBefore(link, nav.querySelector('a[href="timetable.html"]'));
 }
+function ensureAdminNav() {
+  const nav = document.querySelector(".sidebar nav");
+  if (!nav || !currentUser || currentUser.role !== "admin" || nav.querySelector('a[href="admin.php"]')) return;
+  const link = document.createElement("a");
+  link.className = "nav-item";
+  link.href = "admin.php";
+  link.innerHTML = '<span class="icon">▦</span> Administration';
+  nav.appendChild(link);
+}
 document.addEventListener("click", event => {
   const nav = event.target.closest(".nav-item");
   if (nav && nav.dataset.view) {
@@ -402,12 +411,11 @@ if (resourceForm) resourceForm.addEventListener("submit", event => {
 const calendarForm = document.querySelector("#calendar-form");
 if (calendarForm) calendarForm.addEventListener("submit", async event => {
   event.preventDefault();
-  const url = document.querySelector("#calendar-url").value.trim();
   const status = document.querySelector("#calendar-status");
   status.className = "calendar-status";
   status.textContent = "Import des matières en cours…";
   try {
-    const response = await fetchCalendar(url);
+    const response = await fetchCalendar();
     if (!response.ok) throw new Error(`Le lien a répondu avec le statut ${response.status}.`);
     const icsText = await response.text();
     const importedCourses = extractCoursesFromIcs(icsText);
@@ -415,10 +423,9 @@ if (calendarForm) calendarForm.addEventListener("submit", async event => {
     if (!importedCourses.length) throw new Error("Aucune matière lisible n'a été trouvée dans ce calendrier.");
     courses = importedCourses;
     saveCourses();
-    localStorage.setItem(CALENDAR_URL_KEY, url);
     render();
     status.className = "calendar-status success";
-    status.textContent = `${courses.length} matière${courses.length > 1 ? "s" : ""} importée${courses.length > 1 ? "s" : ""}. Tu peux maintenant les rechercher dans le champ Matière.`;
+    status.textContent = `${courses.length} matière${courses.length > 1 ? "s" : ""} synchronisée${courses.length > 1 ? "s" : ""}.`;
     renderTimetable();
   } catch (error) {
     console.error("Import de l'emploi du temps impossible.", error);
@@ -491,29 +498,23 @@ if (allDayToggle) {
   if (time) time.disabled = allDayToggle.checked;
 }
 async function syncCalendar(manual = false) {
-  const url = localStorage.getItem(CALENDAR_URL_KEY);
   const status = document.querySelector("#timetable-status");
-  if (!url) {
-    if (status) {
-      status.className = "calendar-status error";
-      status.textContent = "Aucun lien iCalendar enregistré. Ajoute-le dans Paramètres.";
-    }
-    return;
-  }
   try {
-    const response = await fetchCalendar(url);
+    const response = await fetchCalendar();
     if (!response.ok) throw new Error(`Statut ${response.status}`);
     const text = await response.text();
     timetableEvents = extractEventsFromIcs(text);
     courses = extractCoursesFromIcs(text);
     saveCourses();
     renderTimetable();
-    status.className = "calendar-status success";
-    status.textContent = `Synchronisé à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}.`;
+    if (status) status.className = "calendar-status success";
+    if (status) status.textContent = `Synchronisé à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}.`;
   } catch (error) {
     console.error("Synchronisation impossible.", error);
-    status.className = "calendar-status error";
-    status.textContent = manual ? "Synchronisation impossible. Vérifie le lien ou sa disponibilité." : "Dernière synchronisation impossible.";
+    if (status) {
+      status.className = "calendar-status error";
+      status.textContent = manual ? "Synchronisation impossible. Le calendrier universitaire est indisponible." : "Dernière synchronisation impossible.";
+    }
   }
 }
 function extractEventsFromIcs(icsText) {
@@ -555,6 +556,7 @@ ensureCoursesNav();
 render();
 syncInitialState();
 if (!document.body.dataset.page) showView("dashboard");
+ensureAdminNav();
 if (document.body.dataset.page === "timetable") {
   syncCalendar();
   setInterval(syncCalendar, 15 * 60 * 1000);

@@ -45,7 +45,7 @@ function currentUser(): ?array {
         session_destroy();
         return null;
     }
-    $stmt = database()->prepare('SELECT username, display_name FROM users WHERE username = ?');
+    $stmt = database()->prepare('SELECT username, display_name, role FROM users WHERE username = ?');
     $stmt->execute([$_SESSION['username']]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     return $user ?: null;
@@ -54,6 +54,14 @@ function currentUser(): ?array {
 function requireUser(): array {
     $user = currentUser();
     if (!$user) respond(['error' => 'Authentification requise'], 401);
+    return $user;
+}
+
+function requireAdmin(): array {
+    $user = requireUser();
+    if (($user['role'] ?? 'student') !== 'admin') {
+        respond(['error' => 'Accès administrateur requis'], 403);
+    }
     return $user;
 }
 
