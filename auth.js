@@ -15,5 +15,3 @@ if (loginForm) loginForm.addEventListener("submit", async event => {
   event.preventDefault();
   await login(document.querySelector("#username").value, document.querySelector("#password").value);
 });
-const localLogin = document.querySelector("#local-login");
-if (localLogin) localLogin.addEventListener("click", () => login("antonin"));
