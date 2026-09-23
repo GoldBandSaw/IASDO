@@ -27,6 +27,26 @@ if ($path === 'api/auth/login' && $method === 'POST') {
     $_SESSION['authenticated_at'] = time();
     respond(['authenticated' => true, 'user' => ['username' => $user['username'], 'display_name' => $user['display_name'], 'role' => $user['role']]]);
 }
+if ($path === 'api/admin/login' && $method === 'POST') {
+    $body = jsonBody();
+    $username = strtolower(trim((string)($body['username'] ?? '')));
+    $password = (string)($body['password'] ?? '');
+    $stmt = $db->prepare("SELECT username, display_name, role, password_hash FROM users WHERE username = ? AND role = 'admin'");
+    $stmt->execute([$username]);
+    $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$admin || !password_verify($password, $admin['password_hash'])) respond(['error' => 'Identifiants administrateur incorrects.'], 401);
+    startSession('CAMPUSFLOW_ADMIN_SESSION');
+    session_regenerate_id(true);
+    $_SESSION['admin_username'] = $admin['username'];
+    $_SESSION['authenticated_at'] = time();
+    respond(['ok' => true]);
+}
+if ($path === 'api/admin/logout' && $method === 'POST') {
+    startSession('CAMPUSFLOW_ADMIN_SESSION');
+    $_SESSION = [];
+    session_destroy();
+    respond(['ok' => true]);
+}
 if ($path === 'api/auth/setup' && $method === 'POST') {
     $body = jsonBody();
     $username = strtolower(trim((string)($body['username'] ?? '')));
@@ -61,7 +81,23 @@ if ($path === 'api/auth/logout' && $method === 'POST') {
     session_destroy();
     respond(['ok' => true]);
 }
-requireUser();
+if ($path === 'api/public/state' && $method === 'GET') {
+    $resources = array_map(function ($row) {
+        $resource = json_decode($row['payload'], true);
+        if (!is_array($resource)) return null;
+        return array_intersect_key($resource, array_flip(['id', 'title', 'course', 'type', 'url', 'created_at']));
+    }, $db->query('SELECT payload FROM resources ORDER BY id DESC LIMIT 200')->fetchAll(PDO::FETCH_ASSOC));
+    respond(['courses' => $db->query('SELECT name FROM courses ORDER BY name')->fetchAll(PDO::FETCH_COLUMN), 'resources' => array_values(array_filter($resources, 'is_array'))]);
+}
+$adminRoute = ($path === 'api/admin/resources') || (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'admin' && $parts[2] === 'resources') || ($path === 'api/admin/reports') || ($path === 'api/proposals' && $method === 'GET') || (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'proposals');
+$downloadRoute = count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'resources' && $parts[3] === 'download';
+if ($downloadRoute) {
+    $authenticatedUser = currentAdmin() ?: requireUser();
+} else {
+    $authenticatedUser = $adminRoute ? requireAdmin() : requireUser();
+}
+$username = (string)$authenticatedUser['username'];
+if ($method !== 'GET') requireSameOrigin();
 
 if ($path === 'api/timetable' && $method === 'GET') {
     $url = getenv('COMMON_CALENDAR_URL') ?: 'https://aderead.univ-orleans.fr/jsp/custom/modules/plannings/anonymous_cal.jsp?data=4cd3f88e35ea1920bb2fb34fc8572ff515958a020261fadcd06b8f9f1ea94c625cb13e04815b0b9371306a590364622aba7aca821742c72906697de27ff79d4cf1f995a532c8174ffc4cd3c5822313a409547008355ac6ff85c3d0ba2e9efbe6,1';
@@ -82,31 +118,41 @@ if ($path === 'api/timetable' && $method === 'GET') {
 }
 
 if ($path === 'api/state' && $method === 'GET') {
-    $tasks = array_map(fn($row) => json_decode($row['payload'], true), $db->query('SELECT payload FROM tasks')->fetchAll(PDO::FETCH_ASSOC));
-    $settingsRow = $db->query('SELECT payload FROM settings WHERE id = 1')->fetchColumn();
+    $taskRows = $db->query('SELECT payload FROM tasks')->fetchAll(PDO::FETCH_ASSOC);
+    $tasks = array_values(array_filter(array_map(fn($row) => json_decode($row['payload'], true), $taskRows), fn($task) => is_array($task) && (($task['owner'] ?? '') === $username || ($task['shared'] ?? false) === true)));
+    $settingsStmt = $db->prepare('SELECT payload FROM user_settings WHERE username = ?');
+    $settingsStmt->execute([$username]);
+    $settingsRow = $settingsStmt->fetchColumn();
+    $settings = $settingsRow ? json_decode($settingsRow, true) : null;
     $courses = $db->query('SELECT name FROM courses ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
     $resources = array_map(fn($row) => json_decode($row['payload'], true), $db->query('SELECT payload FROM resources')->fetchAll(PDO::FETCH_ASSOC));
-    respond(['tasks' => $tasks, 'settings' => $settingsRow ? json_decode($settingsRow, true) : null, 'courses' => $courses, 'resources' => $resources]);
+    respond(['tasks' => $tasks, 'settings' => $settings, 'courses' => $courses, 'resources' => $resources]);
 }
 if ($path === 'api/tasks' && $method === 'POST') {
     $body = jsonBody(); if (!isset($body['id'])) respond(['error' => 'id requis'], 422);
+    $body['owner'] = $username;
     $stmt = $db->prepare('INSERT INTO tasks (id, payload) VALUES (?, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload'); $stmt->execute([(string)$body['id'], json_encode($body)]);
     respond($body, 201);
 }
 if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'tasks' && $method === 'PUT') {
     $body = jsonBody();
     if (!isset($body['id']) || (string)$body['id'] !== $parts[2]) respond(['error' => 'id invalide'], 422);
-    $stmt = $db->prepare('UPDATE tasks SET payload = ?::jsonb WHERE id = ?');
-    $stmt->execute([json_encode($body), $parts[2]]);
+    $body['owner'] = $username;
+    $stmt = $db->prepare("UPDATE tasks SET payload = ?::jsonb WHERE id = ? AND payload->>'owner' = ?");
+    $stmt->execute([json_encode($body), $parts[2], $username]);
+    if ($stmt->rowCount() !== 1) respond(['error' => 'Tâche introuvable'], 404);
     respond($body);
 }
 if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'tasks' && $method === 'DELETE') {
-    $stmt = $db->prepare('DELETE FROM tasks WHERE id = ?');
-    $stmt->execute([$parts[2]]);
+    $stmt = $db->prepare("DELETE FROM tasks WHERE id = ? AND payload->>'owner' = ?");
+    $stmt->execute([$parts[2], $username]);
     respond(['ok' => true]);
 }
 if ($path === 'api/settings' && $method === 'PUT') {
-    $body = jsonBody(); $stmt = $db->prepare('INSERT INTO settings (id, payload) VALUES (1, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload'); $stmt->execute([json_encode($body)]); respond($body);
+    $body = jsonBody();
+    $stmt = $db->prepare('INSERT INTO user_settings (username, payload) VALUES (?, ?::jsonb) ON CONFLICT (username) DO UPDATE SET payload = EXCLUDED.payload');
+    $stmt->execute([$username, json_encode($body)]);
+    respond($body);
 }
 if ($path === 'api/courses' && $method === 'POST') {
     $name = trim((string)(jsonBody()['name'] ?? ''));
@@ -120,17 +166,107 @@ if ($path === 'api/resources' && $method === 'POST') {
         if (!isset($body[$field]) || trim((string)$body[$field]) === '') respond(['error' => "$field requis"], 422);
     }
     if (!filter_var($body['url'], FILTER_VALIDATE_URL) || !in_array(parse_url($body['url'], PHP_URL_SCHEME), ['http', 'https'], true)) respond(['error' => 'URL invalide'], 422);
-    $resource = ['id' => (string)$body['id'], 'title' => trim((string)$body['title']), 'course' => trim((string)$body['course']), 'type' => trim((string)$body['type']), 'url' => trim((string)$body['url'])];
+    $resource = ['id' => (string)$body['id'], 'title' => trim((string)$body['title']), 'course' => trim((string)$body['course']), 'type' => trim((string)$body['type']), 'url' => trim((string)$body['url']), 'owner' => $username];
     $db->prepare('INSERT INTO resources (id, payload) VALUES (?, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload')->execute([$resource['id'], json_encode($resource)]);
     respond($resource, 201);
 }
+if ($path === 'api/resources/upload' && $method === 'POST') {
+    $course = trim((string)($_POST['course'] ?? ''));
+    $title = trim((string)($_POST['title'] ?? ''));
+    $file = $_FILES['file'] ?? null;
+    $allowed = [
+        'application/pdf' => 'pdf',
+        'text/markdown' => 'markdown',
+        'text/plain' => 'txt',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+    ];
+    if ($course === '' || !$file || !isset($file['tmp_name']) || (int)$file['error'] !== UPLOAD_ERR_OK) respond(['error' => 'Fichier invalide.'], 422);
+    if ((int)$file['size'] > 50 * 1024 * 1024) respond(['error' => 'Le fichier ne doit pas dépasser 50 Mo.'], 413);
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+    if ($mime === false) respond(['error' => 'Type de fichier illisible.'], 415);
+    $extension = strtolower(pathinfo((string)$file['name'], PATHINFO_EXTENSION));
+    $imageMime = str_starts_with((string)$mime, 'image/') && in_array($extension, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true);
+    if (!isset($allowed[$mime]) && !$imageMime) respond(['error' => 'Format de fichier non autorisé.'], 415);
+    $type = $imageMime ? 'image' : $allowed[$mime];
+    $resourceId = bin2hex(random_bytes(12));
+    $safeName = preg_replace('/[^a-zA-Z0-9._-]+/', '-', basename((string)$file['name'])) ?: 'fichier';
+    $objectPath = $username . '/' . $resourceId . '-' . $safeName;
+    [$storageUrl, $storageKey, $bucket] = storageConfig();
+    $content = file_get_contents($file['tmp_name']);
+    [$status] = storageRequest('POST', '/object/' . rawurlencode($bucket) . '/' . str_replace('%2F', '/', rawurlencode($objectPath)), $content, ['Content-Type: ' . $mime, 'x-upsert: false']);
+    if ($status < 200 || $status >= 300) respond(['error' => 'Le fichier n’a pas pu être stocké.'], 502);
+    $resource = ['id' => $resourceId, 'title' => $title !== '' ? $title : pathinfo((string)$file['name'], PATHINFO_FILENAME), 'course' => $course, 'type' => $type, 'file_name' => (string)$file['name'], 'file_path' => $objectPath, 'owner' => $username];
+    $db->prepare('INSERT INTO resources (id, payload) VALUES (?, ?::jsonb)')->execute([$resourceId, json_encode($resource)]);
+    respond($resource, 201);
+}
+if (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'resources' && $parts[3] === 'download' && $method === 'GET') {
+    $stmt = $db->prepare('SELECT payload FROM resources WHERE id = ?');
+    $stmt->execute([$parts[2]]);
+    $resource = json_decode((string)$stmt->fetchColumn(), true);
+    if (!is_array($resource) || empty($resource['file_path'])) respond(['error' => 'Ressource introuvable'], 404);
+    [$storageUrl, $storageKey, $bucket] = storageConfig();
+    [$status, $body] = storageRequest('POST', '/object/sign/' . rawurlencode($bucket) . '/' . str_replace('%2F', '/', rawurlencode($resource['file_path'])), json_encode(['expiresIn' => 300]), ['Content-Type: application/json']);
+    $signed = json_decode($body, true);
+    if ($status < 200 || $status >= 300 || empty($signed['signedURL'])) respond(['error' => 'Téléchargement indisponible.'], 502);
+    header('Location: ' . $storageUrl . '/storage/v1' . $signed['signedURL']);
+    exit;
+}
+if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'resources' && $parts[2] !== '' && $method === 'POST') {
+    $body = jsonBody();
+    if (empty($body['report'])) respond(['error' => 'Requête invalide.'], 422);
+    $reason = trim((string)($body['reason'] ?? ''));
+    if ($reason === '' || mb_strlen($reason) > 500) respond(['error' => 'Motif invalide.'], 422);
+    $check = $db->prepare('SELECT id FROM resources WHERE id = ?');
+    $check->execute([$parts[2]]);
+    if (!$check->fetchColumn()) respond(['error' => 'Ressource introuvable.'], 404);
+    $stmt = $db->prepare('INSERT INTO resource_reports (resource_id, reporter, reason) VALUES (?, ?, ?) ON CONFLICT (resource_id, reporter) DO UPDATE SET reason = EXCLUDED.reason, status = \'open\', created_at = NOW()');
+    $stmt->execute([$parts[2], $username, $reason]);
+    respond(['ok' => true], 201);
+}
 if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'resources' && $method === 'DELETE') {
-    $db->prepare('DELETE FROM resources WHERE id = ?')->execute([$parts[2]]);
+    $find = $db->prepare('SELECT payload FROM resources WHERE id = ?');
+    $find->execute([$parts[2]]);
+    $resource = json_decode((string)$find->fetchColumn(), true);
+    if (is_array($resource) && !empty($resource['file_path'])) {
+        try { [$storageUrl, $storageKey, $bucket] = storageConfig(); storageRequest('DELETE', '/object/' . rawurlencode($bucket) . '/' . str_replace('%2F', '/', rawurlencode($resource['file_path']))); } catch (Throwable $error) { error_log($error->getMessage()); }
+    }
+    $stmt = $db->prepare("DELETE FROM resources WHERE id = ? AND (payload->>'owner' = ? OR ? = 'admin')");
+    $stmt->execute([$parts[2], $username, $authenticatedUser['role'] ?? 'student']);
+    respond(['ok' => true]);
+}
+if ($path === 'api/admin/resources' && $method === 'GET') {
+    $resources = array_map(fn($row) => json_decode($row['payload'], true), $db->query('SELECT payload FROM resources ORDER BY id DESC LIMIT 200')->fetchAll(PDO::FETCH_ASSOC));
+    respond(array_values(array_filter($resources, 'is_array')));
+}
+if ($path === 'api/admin/reports' && $method === 'GET') {
+    $reports = $db->query("SELECT r.id, r.resource_id, r.reporter, r.reason, r.status, r.created_at, res.payload FROM resource_reports r LEFT JOIN resources res ON res.id = r.resource_id WHERE r.status = 'open' ORDER BY r.created_at DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+    respond(array_map(function (array $row): array {
+        $resource = json_decode((string)$row['payload'], true);
+        unset($row['payload']);
+        $row['resource'] = is_array($resource) ? $resource : null;
+        return $row;
+    }, $reports));
+}
+if (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'admin' && $parts[2] === 'reports' && $method === 'POST') {
+    $stmt = $db->prepare("UPDATE resource_reports SET status = 'closed' WHERE id = ?");
+    $stmt->execute([(int)$parts[3]]);
+    respond(['ok' => true]);
+}
+if (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'admin' && $parts[2] === 'resources' && $method === 'DELETE') {
+    $find = $db->prepare('SELECT payload FROM resources WHERE id = ?');
+    $find->execute([$parts[3]]);
+    $resource = json_decode((string)$find->fetchColumn(), true);
+    if (is_array($resource) && !empty($resource['file_path'])) {
+        [$storageUrl, $storageKey, $bucket] = storageConfig();
+        storageRequest('DELETE', '/object/' . rawurlencode($bucket) . '/' . str_replace('%2F', '/', rawurlencode($resource['file_path'])));
+    }
+    $db->prepare('DELETE FROM resources WHERE id = ?')->execute([$parts[3]]);
     respond(['ok' => true]);
 }
 if ($path === 'api/proposals' && $method === 'GET') {
-    requireAdmin();
-    respond($db->query("SELECT id, course, title, resource_type, url, created_at FROM proposals WHERE status = 'pending' ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC));
+    respond($db->query("SELECT id, course, title, resource_type, url, created_at, status FROM proposals ORDER BY created_at DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC));
 }
 if ($path === 'api/proposals' && $method === 'POST') {
     $body = jsonBody();
@@ -141,7 +277,6 @@ if ($path === 'api/proposals' && $method === 'POST') {
     respond(['ok' => true], 201);
 }
 if (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'proposals' && $method === 'POST' && in_array($parts[3], ['approve', 'reject'], true)) {
-    requireAdmin();
     $id = filter_var($parts[2], FILTER_VALIDATE_INT); if (!$id) respond(['error' => 'id invalide'], 422);
     $status = $parts[3] === 'approve' ? 'approved' : 'rejected';
     $db->beginTransaction();

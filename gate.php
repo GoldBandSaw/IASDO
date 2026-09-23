@@ -3,9 +3,9 @@ declare(strict_types=1);
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'db.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
 
-$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/index.html';
+$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/index.php';
 if (!currentUser()) {
-    header('Location: /login.html');
+    header('Location: /login.php');
     exit;
 }
 $file = realpath(__DIR__ . DIRECTORY_SEPARATOR . ltrim($path, '/'));

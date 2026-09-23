@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . DIRECTORY_SEPARATOR . 'partials' . DIRECTORY_SEPARATOR . 'student-bootstrap.php'; ?>
 <!doctype html>
 <html lang="fr">
 <head>
@@ -9,31 +10,7 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar">
-      <a class="brand" href="#" aria-label="CampusFlow accueil">
-        <span class="brand-mark">C</span>
-        <span>Campus<span>Flow</span></span>
-      </a>
-      <p class="sidebar-label">Espace étudiant</p>
-      <nav>
-        <a class="nav-item active" href="index.html"><span class="icon"><svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 5.5C8.7 4.5 6.8 4 5 4c-.6 0-1 .4-1 1v9c0 .6.4 1 1 1 1.8 0 3.7.5 5 1.5 1.3-1 3.2-1.5 5-1.5.6 0 1-.4 1-1V5c0-.6-.4-1-1-1-1.8 0-3.7.5-5 1.5Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 5.5V16.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> Vue d'ensemble</a>
-        <a class="nav-item" href="tasks.html"><span class="icon"><svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3.5" y="3.5" width="13" height="13" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M6.8 10.2l2 2 4.4-4.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Mes tâches</a>
-        <a class="nav-item" href="add.html"><span class="icon"><svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 7.2v5.6M7.2 10h5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> Ajouter un travail</a>
-        <a class="nav-item" href="timetable.html"><span class="icon"><svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3.5" y="4.5" width="13" height="11.5" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 8h13M7 3v3M13 3v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> Mon emploi du temps</a>
-        <a class="nav-item" href="settings.html"><span class="icon"><svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M10 3.6v1.5M10 14.9v1.5M16.4 10h-1.5M5.1 10H3.6M14.5 5.5l-1 1M6.5 13.5l-1 1M14.5 14.5l-1-1M6.5 6.5l-1-1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span> Paramètres</a>
-      </nav>
-      <a class="account-card" href="settings.html">
-        <span class="avatar" id="sidebar-avatar">É</span>
-        <span class="account-copy"><strong id="sidebar-account-name">Mon espace</strong><small>Compte étudiant</small></span>
-        <span class="account-arrow">→</span>
-      </a>
-      <div class="sidebar-tip">
-        <span class="tip-icon"><svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3l1.4 4.6L16 9l-4.6 1.4L10 15l-1.4-4.6L4 9l4.6-1.4L10 3Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
-        <strong>Petit conseil</strong>
-        <p>Commence par la tâche la plus proche. Une petite victoire débloque souvent le reste.</p>
-      </div>
-      <div class="sidebar-footer">Tes données restent sur cet appareil.</div>
-    </aside>
+    <?php require __DIR__ . DIRECTORY_SEPARATOR . 'partials' . DIRECTORY_SEPARATOR . 'student-sidebar.php'; ?>
 
     <main class="main-content">
       <header class="topbar">
@@ -80,6 +57,20 @@
         </div>
       </section>
 
+      <section class="dashboard-lower view" data-view-content="dashboard">
+        <div class="panel dashboard-resources">
+          <div class="panel-heading">
+            <div><h2>Ressources récentes</h2><p>Les derniers documents partagés par la promotion.</p></div>
+            <a href="courses.php" class="text-link">Voir la bibliothèque</a>
+          </div>
+          <div id="recent-resources" class="recent-resource-list"></div>
+        </div>
+        <div class="panel dashboard-next">
+          <div class="panel-heading"><div><h2>Prochaine étape</h2><p id="next-step-context">À partir de tes tâches ouvertes.</p></div></div>
+          <div id="next-step-card" class="next-step-card"></div>
+        </div>
+      </section>
+
       <section class="workspace-strip view" data-view-content="dashboard" aria-label="Espace personnel">
         <div class="workspace-intro">
           <span class="workspace-icon">✦</span>
@@ -89,13 +80,13 @@
             <p>Retrouve tes cours, tes échéances et ton rythme de travail sans multiplier les outils.</p>
           </div>
         </div>
-        <a class="workspace-link" href="timetable.html">Voir mon planning <span>↗</span></a>
+        <a class="workspace-link" href="timetable.php">Voir mon planning <span>↗</span></a>
       </section>
 
       <section class="privacy-card view" data-view-content="dashboard">
         <div class="privacy-badge"><svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3.5 16 6v4.2c0 3.2-2.3 5.7-6 6.8-3.7-1.1-6-3.6-6-6.8V6l6-2.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m7.2 10 1.8 1.8 3.8-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <div><strong>Ton espace reste privé</strong><p>Tes tâches et préférences sont enregistrées sur cet appareil. La synchronisation avec ta fac reste optionnelle.</p></div>
-        <a href="settings.html">Gérer mes données <span>→</span></a>
+        <div><strong>Ton espace reste privé</strong><p>Tes tâches personnelles et tes préférences ne sont visibles que par toi. Les ressources partagées restent accessibles aux étudiants connectés.</p></div>
+        <a href="settings.php">Gérer mes données <span>→</span></a>
       </section>
 
       <section class="panel all-tasks view" id="tasks" data-view-content="tasks">
@@ -116,6 +107,7 @@
           <label>Titre du travail<input id="task-title" required placeholder="Ex. Rapport de sociologie"></label>
           <label>Matière<input id="task-course" list="course-options" required placeholder="Tape pour chercher une matière"><datalist id="course-options"></datalist></label>
           <label>Date limite<input id="task-date" type="date" required></label>
+          <label class="share-task-label"><input id="task-shared" type="checkbox"> Partager avec la promotion</label>
           <label>Priorité<select id="task-priority"><option value="high">Haute</option><option value="medium" selected>Moyenne</option><option value="low">Basse</option></select></label>
           <button class="primary-button" type="submit">Ajouter à mon planning</button>
         </form>

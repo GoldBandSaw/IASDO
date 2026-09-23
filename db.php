@@ -16,6 +16,8 @@ function database(): PDO {
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $db->exec('CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, payload JSONB NOT NULL)');
     $db->exec('CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id = 1), payload JSONB NOT NULL)');
+    $db->exec('CREATE TABLE IF NOT EXISTS user_settings (username TEXT PRIMARY KEY, payload JSONB NOT NULL)');
+    $db->exec('CREATE TABLE IF NOT EXISTS resource_reports (id BIGSERIAL PRIMARY KEY, resource_id TEXT NOT NULL, reporter TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'open\', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (resource_id, reporter))');
     $db->exec('CREATE TABLE IF NOT EXISTS courses (name TEXT PRIMARY KEY)');
     $db->exec('CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, payload JSONB NOT NULL)');
     $db->exec('CREATE TABLE IF NOT EXISTS proposals (id BIGSERIAL PRIMARY KEY, course TEXT NOT NULL, title TEXT NOT NULL, resource_type TEXT NOT NULL, url TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'pending\', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
@@ -61,4 +63,28 @@ function respond(mixed $data, int $status = 200): never {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
+}
+
+function storageConfig(): array {
+    $url = rtrim((string)getenv('SUPABASE_URL'), '/');
+    $key = (string)getenv('SUPABASE_SERVICE_ROLE_KEY');
+    $bucket = (string)(getenv('SUPABASE_STORAGE_BUCKET') ?: 'campusflow-resources');
+    if ($url === '' || $key === '') throw new RuntimeException('Configuration Supabase Storage manquante.');
+    return [$url, $key, $bucket];
+}
+
+function storageRequest(string $method, string $path, ?string $body = null, array $headers = []): array {
+    [$url, $key] = storageConfig();
+    $handle = curl_init($url . '/storage/v1' . $path);
+    curl_setopt_array($handle, [
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_HTTPHEADER => array_merge(['Authorization: Bearer ' . $key, 'apikey: ' . $key], $headers),
+    ]);
+    if ($body !== null) curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
+    $response = curl_exec($handle);
+    $status = (int)curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    curl_close($handle);
+    return [$status, (string)$response];
 }

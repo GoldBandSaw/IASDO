@@ -15,7 +15,7 @@ form.addEventListener("submit", async event => {
     const response = await fetch("/api/auth/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: username.value, token: params.get("token") || "", password }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Activation impossible.");
-    window.location.href = "/login.html";
+    window.location.href = "/login.php";
   } catch (error) {
     status.textContent = error.message;
   }

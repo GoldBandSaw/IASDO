@@ -81,7 +81,6 @@ async function syncInitialState() {
   try {
     const auth = await apiRequest("/api/auth/me", "GET");
     currentUser = auth.user;
-    ensureAdminNav();
     const state = await apiRequest("/api/state", "GET");
     if (state.tasks.length) tasks = state.tasks;
     else for (const task of tasks) await apiRequest("/api/tasks", "POST", task);
@@ -121,11 +120,12 @@ function formatDue(value) {
 }
 function taskMarkup(task) {
   const urgent = !task.done && daysUntil(task.due) <= 3;
+  const canEdit = !task.owner || !currentUser || task.owner === currentUser.username;
   return `<div class="task-row">
     <button class="check ${task.done ? "done" : ""}" data-action="toggle" data-id="${task.id}" aria-label="${task.done ? "Marquer à faire" : "Marquer terminée"}">${task.done ? "✓" : ""}</button>
-    <div class="task-body"><p class="task-title ${task.done ? "done" : ""}">${escapeHtml(task.title)}</p><div class="task-meta"><span class="course">${escapeHtml(task.course)}</span> · <span class="priority ${task.priority}" title="Priorité"></span> ${priorityName(task.priority)}</div></div>
+    <div class="task-body"><p class="task-title ${task.done ? "done" : ""}">${escapeHtml(task.title)}</p><div class="task-meta"><span class="course">${escapeHtml(task.course)}</span> · <span class="priority ${task.priority}" title="Priorité"></span> ${priorityName(task.priority)}${task.shared ? ' · <span class="shared-task-badge">Partagée</span>' : ""}</div></div>
     <span class="due ${urgent ? "urgent" : "normal"}">${formatDue(task.due)}</span>
-    <button class="delete-button" data-action="delete" data-id="${task.id}" aria-label="Supprimer">×</button>
+    ${canEdit ? `<button class="edit-button" data-action="edit-task" data-id="${task.id}" aria-label="Modifier ${escapeHtml(task.title)}">Modifier</button><button class="delete-button" data-action="delete" data-id="${task.id}" aria-label="Supprimer">×</button>` : '<span class="task-shared-note">Partagée par la promotion</span>'}
   </div>`;
 }
 function priorityName(value) { return { high: "Haute", medium: "Moyenne", low: "Basse" }[value]; }
@@ -171,6 +171,8 @@ function render() {
   renderSettings();
   renderTimetable();
   renderWeekChart();
+  renderDashboardResources();
+  renderNextStep();
 }
 function renderSettings() {
   document.querySelector("#first-name").value = settings.firstName;
@@ -241,25 +243,21 @@ function renderCourses() {
     : `<span class="course-placeholder">Aucune matière importée pour le moment.</span>`;
 }
 function resourceTypeName(type) {
-  return { notion: "Notion", pdf: "PDF", gemini: "Gemini Notebook", other: "Autre" }[type] || "Lien";
+  return { notion: "Notion", pdf: "PDF", markdown: "Markdown", image: "Image", gemini: "Gemini Notebook", other: "Autre" }[type] || "Lien";
 }
 function resourceIcon(type) {
-  return { notion: "N", pdf: "PDF", gemini: "*", other: "↗" }[type] || "->";
+  return { notion: "N", pdf: "PDF", markdown: "MD", image: "IMG", gemini: "*", other: "↗" }[type] || "->";
 }
 function previewMarkup(resource) {
-  if (resource.type === "pdf") {
-    return `<div class="resource-preview"><iframe src="${escapeHtml(resource.url)}" title="Prévisualisation PDF : ${escapeHtml(resource.title)}"></iframe></div>`;
-  }
-  if (resource.type === "notion" || resource.type === "gemini") {
-    return `<div class="resource-preview"><iframe src="${escapeHtml(resource.url)}" title="Prévisualisation : ${escapeHtml(resource.title)}" loading="lazy"></iframe></div>`;
-  }
   return "";
 }
 function resourceMarkup(resource) {
+  const href = resource.file_path ? `/api/resources/${encodeURIComponent(resource.id)}/download` : resource.url;
+  const target = resource.file_path ? "" : ' target="_blank" rel="noopener noreferrer"';
   return `<article class="resource-card">
-    <div class="resource-card-header"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><div class="resource-heading"><h3>${escapeHtml(resource.title)}</h3><span>${resourceTypeName(resource.type)}</span></div><button class="delete-button" data-resource-delete="${resource.id}" aria-label="Supprimer ${escapeHtml(resource.title)}">×</button></div>
+    <div class="resource-card-header"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><div class="resource-heading"><h3>${escapeHtml(resource.title)}</h3><span>${resourceTypeName(resource.type)}${resource.file_name ? ` · ${escapeHtml(resource.file_name)}` : ""}</span></div><button class="delete-button" data-resource-delete="${escapeHtml(resource.id)}" aria-label="Supprimer ${escapeHtml(resource.title)}">×</button></div>
     ${previewMarkup(resource)}
-    <a class="resource-link" href="${escapeHtml(resource.url)}" target="_blank" rel="noopener noreferrer">Ouvrir la ressource <span>↗</span></a>
+    <div class="resource-actions"><a class="resource-link" href="${escapeHtml(href)}"${target}>${resource.file_path ? "Télécharger le fichier" : "Ouvrir la ressource"} <span>↗</span></a><button class="report-resource" data-resource-report="${escapeHtml(resource.id)}">Signaler</button></div>
   </article>`;
 }
 function renderCoursesPage() {
@@ -293,6 +291,27 @@ function renderWeekChart() {
     return `<div class="bar-wrap"><span class="bar-count">${count || ""}</span><div class="bar ${isToday ? "today" : ""}" style="height:${Math.max(count / max * 82, 4)}px"></div><span class="bar-label">${dayNames[date.getDay()]}</span></div>`;
   }).join("");
 }
+function renderDashboardResources() {
+  const list = document.querySelector("#recent-resources");
+  if (!list) return;
+  const recent = [...courseResources].slice(-4).reverse();
+  list.innerHTML = recent.length
+    ? recent.map(resource => `<a class="recent-resource" href="${escapeHtml(resource.url)}" target="_blank" rel="noopener noreferrer"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)} · ${resourceTypeName(resource.type)}</small></span><span aria-hidden="true">↗</span></a>`).join("")
+    : emptyMarkup("Aucune ressource partagée", "La bibliothèque se remplira dès que quelqu'un ajoutera un lien.");
+}
+function renderNextStep() {
+  const card = document.querySelector("#next-step-card");
+  const context = document.querySelector("#next-step-context");
+  if (!card) return;
+  const next = tasks.filter(task => !task.done).sort((a, b) => dateFromString(a.due) - dateFromString(b.due))[0];
+  if (!next) {
+    if (context) context.textContent = "Toutes tes tâches sont terminées.";
+    card.innerHTML = `<strong>Tu es à jour !</strong><p>Profite de ton avance ou consulte la bibliothèque.</p><a class="secondary-button" href="courses.php">Ouvrir les ressources</a>`;
+    return;
+  }
+  if (context) context.textContent = `${next.course} · ${formatDue(next.due)}`;
+  card.innerHTML = `<strong>${escapeHtml(next.title)}</strong><p>Priorité ${priorityName(next.priority).toLowerCase()} · ${formatDue(next.due)}</p><a class="primary-button" href="tasks.php">Voir mes tâches</a>`;
+}
 function showToast(message) {
   const toast = document.querySelector("#toast");
   if (!toast) return;
@@ -305,12 +324,12 @@ function showView(view) {
 }
 function ensureCoursesNav() {
   const nav = document.querySelector(".sidebar nav");
-  if (!nav || nav.querySelector('a[href="courses.html"]')) return;
+  if (!nav || nav.querySelector('a[href="courses.php"]')) return;
   const link = document.createElement("a");
   link.className = "nav-item";
-  link.href = "courses.html";
+  link.href = "courses.php";
   link.innerHTML = '<span class="icon">▣</span> Mes cours';
-  nav.insertBefore(link, nav.querySelector('a[href="timetable.html"]'));
+  nav.insertBefore(link, nav.querySelector('a[href="timetable.php"]'));
 }
 function ensureAdminNav() {
   const nav = document.querySelector(".sidebar nav");
@@ -322,6 +341,15 @@ function ensureAdminNav() {
   nav.appendChild(link);
 }
 document.addEventListener("click", event => {
+  const reportButton = event.target.closest("[data-resource-report]");
+  if (reportButton) {
+    const reason = window.prompt("Pourquoi signales-tu cette ressource ?");
+    if (!reason || !reason.trim()) return;
+    apiRequest(`/api/resources/${encodeURIComponent(reportButton.dataset.resourceReport)}`, "POST", { report: true, reason: reason.trim() })
+      .then(() => showToast("Signalement envoyé à l’administration"))
+      .catch(() => showToast("Impossible d’envoyer le signalement"));
+    return;
+  }
   const nav = event.target.closest(".nav-item");
   if (nav && nav.dataset.view) {
     event.preventDefault();
@@ -330,6 +358,10 @@ document.addEventListener("click", event => {
   const action = event.target.closest("[data-action]");
   if (action) {
     const id = Number(action.dataset.id);
+    if (action.dataset.action === "edit-task") {
+      openTaskEditor(tasks.find(task => task.id === id));
+      return;
+    }
     if (action.dataset.action === "toggle") {
       tasks = tasks.map(task => task.id === id ? { ...task, done: !task.done } : task);
       const changed = tasks.find(task => task.id === id);
@@ -363,13 +395,58 @@ const taskForm = document.querySelector("#task-form");
 if (taskForm) taskForm.addEventListener("submit", event => {
   event.preventDefault();
   const allDay = document.querySelector("#task-all-day")?.checked ?? true;
-  const task = { id: Date.now(), title: document.querySelector("#task-title").value.trim(), course: document.querySelector("#task-course").value.trim(), due: document.querySelector("#task-date").value, time: allDay ? "" : (document.querySelector("#task-time")?.value || ""), allDay, priority: document.querySelector("#task-priority").value, done: false };
+  const course = document.querySelector("#task-course").value.trim();
+  if (courses.length && !courses.some(item => item.toLocaleLowerCase() === course.toLocaleLowerCase())) {
+    showToast("Choisis une matière existante");
+    return;
+  }
+  const task = { id: Date.now(), title: document.querySelector("#task-title").value.trim(), course, due: document.querySelector("#task-date").value, time: allDay ? "" : (document.querySelector("#task-time")?.value || ""), allDay, priority: document.querySelector("#task-priority").value, shared: Boolean(document.querySelector("#task-shared")?.checked), done: false };
   tasks.push(task); saveTasks();
   apiRequest("/api/tasks", "POST", task).catch(error => console.error("Enregistrement de la tâche impossible.", error));
   event.target.reset(); render(); showToast("Tâche ajoutée à ton planning");
   const tasksSection = document.querySelector("#tasks");
   if (tasksSection) tasksSection.scrollIntoView({ behavior: "smooth" });
 });
+function openTaskEditor(task) {
+  if (!task) return;
+  let modal = document.querySelector("#task-editor");
+  if (!modal) {
+    modal = document.createElement("dialog");
+    modal.id = "task-editor";
+    modal.innerHTML = `<form method="dialog" class="task-editor-form">
+      <div class="panel-heading"><div><p class="eyebrow">Modifier la tâche</p><h2 id="task-editor-title">Tâche</h2></div><button class="delete-button" value="cancel" aria-label="Fermer">×</button></div>
+      <label>Titre<input id="edit-task-title" required></label>
+      <label>Matière<input id="edit-task-course" list="edit-course-options" required><datalist id="edit-course-options"></datalist></label>
+      <label>Date limite<input id="edit-task-date" type="date" required></label>
+      <label>Priorité<select id="edit-task-priority"><option value="high">Haute</option><option value="medium">Moyenne</option><option value="low">Basse</option></select></label>
+      <label class="share-task-label"><input id="edit-task-shared" type="checkbox"> Partager avec la promotion</label>
+      <div class="task-editor-actions"><button class="secondary-button" value="cancel">Annuler</button><button class="primary-button" id="save-task-edit" value="default">Enregistrer</button></div>
+    </form>`;
+    document.body.appendChild(modal);
+    modal.addEventListener("submit", event => {
+      event.preventDefault();
+      const current = tasks.find(item => item.id === Number(modal.dataset.taskId));
+      if (!current) return;
+      Object.assign(current, {
+        title: document.querySelector("#edit-task-title").value.trim(),
+        course: document.querySelector("#edit-task-course").value.trim(),
+        due: document.querySelector("#edit-task-date").value,
+        priority: document.querySelector("#edit-task-priority").value,
+        shared: document.querySelector("#edit-task-shared").checked
+      });
+      apiRequest(`/api/tasks/${current.id}`, "PUT", current).catch(error => console.error("Modification de la tâche impossible.", error));
+      saveTasks(); modal.close(); render(); showToast("Tâche modifiée");
+    });
+  }
+  modal.dataset.taskId = String(task.id);
+  document.querySelector("#edit-task-title").value = task.title;
+  document.querySelector("#edit-task-course").value = task.course;
+  document.querySelector("#edit-task-date").value = task.due;
+  document.querySelector("#edit-task-priority").value = task.priority;
+  document.querySelector("#edit-task-shared").checked = Boolean(task.shared);
+  document.querySelector("#edit-course-options").innerHTML = courses.map(course => `<option value="${escapeHtml(course)}"></option>`).join("");
+  modal.showModal();
+}
 const courseForm = document.querySelector("#course-form");
 if (courseForm) courseForm.addEventListener("submit", event => {
   event.preventDefault();
@@ -387,13 +464,41 @@ if (courseForm) courseForm.addEventListener("submit", event => {
   }
 });
 const resourceForm = document.querySelector("#resource-form");
-if (resourceForm) resourceForm.addEventListener("submit", event => {
+const resourceSource = document.querySelector("#resource-source");
+const resourceFile = document.querySelector("#resource-file");
+if (resourceFile) resourceFile.addEventListener("change", () => {
+  const title = document.querySelector("#resource-title");
+  if (resourceFile.files[0] && title && !title.value.trim()) title.value = resourceFile.files[0].name.replace(/\.[^.]+$/, "");
+});
+if (resourceSource) resourceSource.addEventListener("change", () => {
+  const fileMode = resourceSource.value === "file";
+  document.querySelector("#resource-link-field").style.display = fileMode ? "none" : "";
+  document.querySelector("#resource-file-field").style.display = fileMode ? "" : "none";
+  document.querySelector("#resource-url").required = !fileMode;
+  document.querySelector("#resource-file").required = fileMode;
+});
+if (resourceForm) resourceForm.addEventListener("submit", async event => {
   event.preventDefault();
   const title = document.querySelector("#resource-title").value.trim();
   const course = document.querySelector("#resource-course").value;
   const type = document.querySelector("#resource-type").value;
   const url = document.querySelector("#resource-url").value.trim();
-  if (!title || !course || !url) return;
+  const file = document.querySelector("#resource-file").files[0];
+  if (!course) return;
+  if (resourceSource?.value === "file") {
+    if (!file) { showToast("Choisis un fichier"); return; }
+    if (file.size > 50 * 1024 * 1024) { showToast("Le fichier ne doit pas dépasser 50 Mo"); return; }
+    const form = new FormData();
+    form.append("course", course); form.append("title", title); form.append("file", file);
+    try {
+      const response = await fetch("/api/resources/upload", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Upload impossible");
+      courseResources.push(data); saveCourseResources(); event.target.reset(); renderCoursesPage(); showToast("Fichier partagé");
+    } catch (error) { showToast(error.message); }
+    return;
+  }
+  if (!title || !url) return;
   try {
     const parsed = new URL(url);
     if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("URL non sécurisée");
