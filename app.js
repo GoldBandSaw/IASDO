@@ -49,7 +49,12 @@ function loadCourses() {
     return [];
   }
 }
-function saveCourses() { localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify(courses)); }
+function saveCourses() {
+  localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify(courses));
+  if (apiEnabled) {
+    for (const name of courses) apiRequest("/api/courses", "POST", { name }).catch(error => console.error("Enregistrement de la matière impossible.", error));
+  }
+}
 function loadCourseResources() {
   try {
     const saved = localStorage.getItem(COURSE_RESOURCES_STORAGE_KEY);
@@ -327,6 +332,7 @@ document.addEventListener("click", event => {
       const resourceId = Number(resourceDelete.dataset.resourceDelete);
       courseResources = courseResources.filter(resource => resource.id !== resourceId);
       saveCourseResources();
+      apiRequest(`/api/resources/${resourceId}`, "DELETE").catch(error => console.error("Suppression de la ressource impossible.", error));
       renderCoursesPage();
       showToast("Ressource supprimée");
     }
@@ -388,6 +394,7 @@ if (resourceForm) resourceForm.addEventListener("submit", event => {
   }
   courseResources.push({ id: Date.now(), title, course, type, url });
   saveCourseResources();
+  apiRequest("/api/resources", "POST", courseResources.at(-1)).catch(error => console.error("Enregistrement de la ressource impossible.", error));
   event.target.reset();
   renderCoursesPage();
   showToast("Cours ajouté");

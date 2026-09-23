@@ -33,7 +33,17 @@ Ne mets jamais cette ligne dans un fichier GitHub, un message public ou du code 
 
 Attends que Render affiche **Live**. Si le premier chargement est lent, attends une minute : le serveur gratuit se réveille.
 
-### 3. Ouvrir le site
+### 3. Ouvrir Supabase et mettre le schéma en place
+
+1. Dans Supabase, clique sur **SQL Editor**.
+2. Clique sur **New query**.
+3. Copie-colle le contenu de `supabase/migrations/20260923111500_create_campusflow_schema.sql`.
+4. Clique sur **Run**.
+5. Fais la même chose avec `supabase/migrations/20260923120000_lock_users_and_sessions.sql`.
+
+Tu dois voir les tables `users`, `sessions`, `tasks`, `settings`, `courses`, `resources` et `proposals`.
+
+### 4. Ouvrir le site
 
 1. Dans Render, copie l'adresse qui ressemble à :
 
@@ -44,7 +54,7 @@ Attends que Render affiche **Live**. Si le premier chargement est lent, attends 
 
 Si tu vois une erreur, retourne dans Render et vérifie que la variable s'appelle bien `DATABASE_URL`, sans espace.
 
-### 4. Créer les dix liens de première connexion
+### 5. Créer les dix liens de première connexion
 
 Les dix comptes existent déjà. Personne ne peut créer un onzième compte.
 
@@ -59,7 +69,7 @@ Remplace `COLLE ICI LA LONGUE LIGNE SUPABASE` et l'adresse Render par les vraies
 
 Le programme affiche dix liens. Copie chaque lien et envoie-le uniquement à la bonne personne. Chaque lien ne fonctionne qu'une seule fois.
 
-### 5. Première connexion d'un étudiant
+### 6. Première connexion d'un étudiant
 
 1. L'étudiant clique sur son lien.
 2. Il choisit un mot de passe d'au moins 10 caractères avec une lettre et un chiffre.

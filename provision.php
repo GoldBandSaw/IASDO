@@ -8,7 +8,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'db.php';
 $db = database();
 $base = rtrim((string)($argv[1] ?? 'http://localhost:8000'), '/');
 $update = $db->prepare('UPDATE users SET setup_token_hash = ?, setup_used = FALSE, password_hash = \'\' WHERE username = ?');
-$users = $db->query('SELECT username FROM users ORDER BY username')->fetchAll(PDO::FETCH_COLUMN);
+$users = ['antonin', 'lucas', 'aymen', 'youssef', 'maelle', 'jason', 'nolann', 'leon', 'roman', 'cedric'];
 echo "Liens de première connexion (à transmettre individuellement)".PHP_EOL;
 foreach ($users as $username) {
     $token = bin2hex(random_bytes(32));

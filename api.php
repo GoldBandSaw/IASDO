@@ -33,11 +33,9 @@ if ($path === 'api/auth/setup' && $method === 'POST') {
     $token = trim((string)($body['token'] ?? ''));
     $password = (string)($body['password'] ?? '');
     if (!passwordIsValid($password)) respond(['error' => 'Le mot de passe doit contenir au moins 10 caractères, une lettre et un chiffre.'], 422);
-    $stmt = $db->prepare('SELECT username FROM users WHERE username = ? AND setup_used = FALSE AND setup_token_hash = ?');
-    $stmt->execute([$username, hash('sha256', $token)]);
-    if (!$stmt->fetch()) respond(['error' => 'Lien de première connexion invalide ou déjà utilisé.'], 401);
-    $update = $db->prepare('UPDATE users SET password_hash = ?, setup_token_hash = \'\', setup_used = TRUE WHERE username = ?');
-    $update->execute([password_hash($password, PASSWORD_DEFAULT), $username]);
+    $update = $db->prepare('UPDATE users SET password_hash = ?, setup_token_hash = \'\', setup_used = TRUE WHERE username = ? AND setup_used = FALSE AND setup_token_hash = ?');
+    $update->execute([password_hash($password, PASSWORD_DEFAULT), $username, hash('sha256', $token)]);
+    if ($update->rowCount() !== 1) respond(['error' => 'Lien de première connexion invalide ou déjà utilisé.'], 401);
     respond(['ok' => true]);
 }
 if ($path === 'api/auth/password' && $method === 'PUT') {
@@ -77,8 +75,40 @@ if ($path === 'api/tasks' && $method === 'POST') {
     $stmt = $db->prepare('INSERT INTO tasks (id, payload) VALUES (?, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload'); $stmt->execute([(string)$body['id'], json_encode($body)]);
     respond($body, 201);
 }
+if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'tasks' && $method === 'PUT') {
+    $body = jsonBody();
+    if (!isset($body['id']) || (string)$body['id'] !== $parts[2]) respond(['error' => 'id invalide'], 422);
+    $stmt = $db->prepare('UPDATE tasks SET payload = ?::jsonb WHERE id = ?');
+    $stmt->execute([json_encode($body), $parts[2]]);
+    respond($body);
+}
+if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'tasks' && $method === 'DELETE') {
+    $stmt = $db->prepare('DELETE FROM tasks WHERE id = ?');
+    $stmt->execute([$parts[2]]);
+    respond(['ok' => true]);
+}
 if ($path === 'api/settings' && $method === 'PUT') {
     $body = jsonBody(); $stmt = $db->prepare('INSERT INTO settings (id, payload) VALUES (1, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload'); $stmt->execute([json_encode($body)]); respond($body);
+}
+if ($path === 'api/courses' && $method === 'POST') {
+    $name = trim((string)(jsonBody()['name'] ?? ''));
+    if ($name === '' || mb_strlen($name) > 120) respond(['error' => 'Matière invalide'], 422);
+    $db->prepare('INSERT INTO courses (name) VALUES (?) ON CONFLICT (name) DO NOTHING')->execute([$name]);
+    respond(['name' => $name], 201);
+}
+if ($path === 'api/resources' && $method === 'POST') {
+    $body = jsonBody();
+    foreach (['id', 'title', 'course', 'type', 'url'] as $field) {
+        if (!isset($body[$field]) || trim((string)$body[$field]) === '') respond(['error' => "$field requis"], 422);
+    }
+    if (!filter_var($body['url'], FILTER_VALIDATE_URL) || !in_array(parse_url($body['url'], PHP_URL_SCHEME), ['http', 'https'], true)) respond(['error' => 'URL invalide'], 422);
+    $resource = ['id' => (string)$body['id'], 'title' => trim((string)$body['title']), 'course' => trim((string)$body['course']), 'type' => trim((string)$body['type']), 'url' => trim((string)$body['url'])];
+    $db->prepare('INSERT INTO resources (id, payload) VALUES (?, ?::jsonb) ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload')->execute([$resource['id'], json_encode($resource)]);
+    respond($resource, 201);
+}
+if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'resources' && $method === 'DELETE') {
+    $db->prepare('DELETE FROM resources WHERE id = ?')->execute([$parts[2]]);
+    respond(['ok' => true]);
 }
 if ($path === 'api/proposals' && $method === 'GET') {
     respond($db->query("SELECT id, course, title, resource_type, url, created_at FROM proposals WHERE status = 'pending' ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC));
