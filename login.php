@@ -11,6 +11,7 @@
       <label>Identifiant<input id="username" autocomplete="username" required placeholder="ex. antonin"></label>
       <label>Mot de passe<input id="password" type="password" autocomplete="current-password" required></label>
       <button class="primary-button" type="submit">Se connecter</button>
+      <a class="secondary-button" href="guest.php">Continuer en invité</a>
       <p id="login-status" class="auth-status" role="alert"></p>
     </form>
     <p class="auth-note">Identifiants disponibles : antonin, lucas, aymen, youssef, maelle, jason, nolann, leon, roman et cedric. Le mot de passe initial est communiqué séparément.</p>

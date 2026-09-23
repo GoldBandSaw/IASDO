@@ -325,3 +325,48 @@ body.dark-mode .toast{background:#F3F1EA;color:var(--cover)}
   @keyframes riseIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 }
  .admin-list{display:grid;gap:12px;margin-top:22px}.admin-item{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.admin-item strong,.admin-item span{display:block}.admin-item span{margin-top:5px;color:var(--muted);font-size:12px}.admin-item .secondary-button{margin-left:8px}
+ .admin-resource-panel{margin-top:20px}.admin-item a{color:var(--blue);text-decoration:none}.admin-item a:hover{text-decoration:underline}.admin-shell .sidebar{position:sticky;top:0;height:100vh}
+ .guest-page{min-height:100vh;padding:28px;background:var(--bg)}.guest-container{max-width:1180px;margin:0 auto}.guest-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}.guest-resource-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:20px}
+
+ /* Shared responsive navigation */
+ .mobile-menu-toggle,.sidebar-backdrop{display:none}
+ .sidebar-logout{margin:12px 4px 0;border:0;background:transparent;color:var(--on-dark-muted);font:600 11px "DM Sans";text-align:left;cursor:pointer}
+ .sidebar-logout:hover{color:var(--on-dark)}
+ .dashboard-lower{display:grid;grid-template-columns:1.2fr .8fr;gap:17px;margin-bottom:25px}
+ .recent-resource-list{display:grid;gap:8px}
+ .recent-resource{display:flex;align-items:center;gap:11px;padding:10px 4px;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none}
+ .recent-resource:last-child{border-bottom:0}
+ .recent-resource>span:nth-child(2){min-width:0;flex:1}
+ .recent-resource strong,.recent-resource small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .recent-resource strong{font-size:13px}
+ .recent-resource small{margin-top:3px;color:var(--muted);font-size:11px}
+ .recent-resource>span:last-child{color:var(--blue);font-size:17px}
+ .next-step-card{padding:17px;border-radius:12px;background:var(--amber-tint);color:var(--ink)}
+ .next-step-card strong{display:block;font:600 17px "Fraunces",serif;line-height:1.25}
+ .next-step-card p{margin:7px 0 15px;color:var(--muted);font-size:12px}
+ .next-step-card .primary-button,.next-step-card .secondary-button{width:100%;text-decoration:none}
+ .shared-task-badge{color:var(--purple);font-weight:700}
+ .edit-button{border:0;background:transparent;color:var(--blue);font-size:11px;font-weight:700;cursor:pointer}
+ .task-shared-note{color:var(--muted);font-size:10px;white-space:nowrap}
+ .task-editor-form{min-width:min(92vw,430px);display:grid;gap:14px;padding:22px;border:0}
+ dialog{border:0;border-radius:16px;padding:0;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+ dialog::backdrop{background:rgba(15,20,36,.5)}
+ .task-editor-form .panel-heading{margin-bottom:2px}
+ .task-editor-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:5px}
+ .share-task-label{display:flex;align-items:center;gap:8px}
+ .share-task-label input{width:auto;margin:0}
+ .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+ @media(max-width:650px){
+   .mobile-menu-toggle{display:grid;gap:4px;position:fixed;z-index:40;top:14px;right:15px;width:42px;height:42px;padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow-soft);cursor:pointer}
+   .mobile-menu-toggle span:not(.sr-only){display:block;width:18px;height:2px;border-radius:2px;background:currentColor;transition:transform .2s ease,opacity .2s ease}
+   body.menu-open .mobile-menu-toggle span:nth-child(1){transform:translateY(6px) rotate(45deg)}
+   body.menu-open .mobile-menu-toggle span:nth-child(2){opacity:0}
+   body.menu-open .mobile-menu-toggle span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+   .sidebar{position:fixed;z-index:35;inset:0 auto 0 0;width:min(82vw,290px);height:100vh;transform:translateX(-105%);transition:transform .25s ease;overflow-y:auto;box-shadow:18px 0 40px rgba(10,14,32,.25)}
+   body.menu-open .sidebar{transform:translateX(0)}
+   .sidebar-backdrop{position:fixed;z-index:30;inset:0;background:rgba(15,20,36,.46)}
+   body.menu-open .sidebar-backdrop{display:block}
+   .main-content,.page-content{padding-top:76px}
+   body.menu-open{overflow:hidden}
+   .dashboard-lower{grid-template-columns:1fr}
+ }

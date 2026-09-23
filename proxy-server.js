@@ -19,6 +19,7 @@ const ROOT = __dirname;
 const localMode = false;
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
+  ".php": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8"
 };
@@ -314,12 +315,12 @@ function proxyCalendar(response, target) {
 }
 
 async function serveFile(request, response, pathname) {
-  if (pathname !== "/login.html" && pathname !== "/auth.js" && pathname !== "/auth.css" &&
-      pathname !== "/modern.css" && (pathname === "/" || pathname.endsWith(".html")) && !(await currentUser(request))) {
-    response.writeHead(302, { Location: "/login.html" });
+  if (pathname !== "/login.php" && pathname !== "/auth.js" && pathname !== "/auth.css" &&
+      pathname !== "/modern.css" && (pathname === "/" || pathname.endsWith(".php")) && !(await currentUser(request))) {
+    response.writeHead(302, { Location: "/login.php" });
     return response.end();
   }
-  const requested = pathname === "/" ? "/index.html" : pathname;
+  const requested = pathname === "/" ? "/index.php" : pathname;
   const filePath = path.resolve(ROOT, `.${requested}`);
   if (!filePath.startsWith(ROOT) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
     send(response, 404, "Page introuvable.");

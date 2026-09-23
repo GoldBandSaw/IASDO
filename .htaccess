@@ -4,12 +4,14 @@ RewriteEngine On
 RewriteRule ^api(?:/.*)?$ api.php [QSA,L]
 
 # Public authentication assets/pages.
-RewriteRule ^(?:login|setup)\.html$ - [L]
+RewriteRule ^(?:login|setup)\.php$ - [L]
 RewriteRule ^(?:auth|setup)\.js$ - [L]
 RewriteRule ^auth\.css$ - [L]
 
-# All application HTML is served through the session gate.
-RewriteCond %{REQUEST_URI} !^/login\.html$
-RewriteCond %{REQUEST_URI} !^/setup\.html$
-RewriteCond %{REQUEST_URI} \.html$
-RewriteRule ^ gate.php [QSA,L]
+# PHP pages authenticate themselves through the shared bootstrap. Keep old
+# HTML URLs as redirects during the migration instead of serving duplicate pages.
+RewriteRule ^(?:index|tasks|add|courses|timetable|settings)\.html$ /$1.php [R=302,L]
+RewriteRule ^login\.html$ /login.php [R=302,L]
+RewriteRule ^setup\.html$ /setup.php [R=302,L]
+RewriteRule ^admin-login\.html$ /admin-login.php [R=302,L]
+RewriteRule ^guest\.html$ /guest.php [R=302,L]

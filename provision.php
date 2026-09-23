@@ -13,5 +13,5 @@ echo "Liens de première connexion (à transmettre individuellement)".PHP_EOL;
 foreach ($users as $username) {
     $token = bin2hex(random_bytes(32));
     $update->execute([hash('sha256', $token), $username]);
-    echo $username . ': ' . $base . '/setup.html?username=' . rawurlencode($username) . '&token=' . $token . PHP_EOL;
+    echo $username . ': ' . $base . '/setup.php?username=' . rawurlencode($username) . '&token=' . $token . PHP_EOL;
 }
