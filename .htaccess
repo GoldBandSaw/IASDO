@@ -1,0 +1,15 @@
+RewriteEngine On
+
+# Keep the API behind api.php and let PHP enforce the session.
+RewriteRule ^api(?:/.*)?$ api.php [QSA,L]
+
+# Public authentication assets/pages.
+RewriteRule ^(?:login|setup)\.html$ - [L]
+RewriteRule ^(?:auth|setup)\.js$ - [L]
+RewriteRule ^auth\.css$ - [L]
+
+# All application HTML is served through the session gate.
+RewriteCond %{REQUEST_URI} !^/login\.html$
+RewriteCond %{REQUEST_URI} !^/setup\.html$
+RewriteCond %{REQUEST_URI} \.html$
+RewriteRule ^ gate.php [QSA,L]
