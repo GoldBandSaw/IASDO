@@ -21,7 +21,6 @@
         <div class="course-tools">
           <div class="privacy-note"><strong>Bibliothèque commune</strong><span>Les matières sont gérées à partir du planning et par l'administration. Choisis simplement une matière existante lorsque tu ajoutes une ressource.</span></div>
         </div>
-        <p><a class="resource-link" href="propose-course.php">Proposer une ressource à faire valider par l'administration ↗</a></p>
       </section>
       <section class="page-card add-resource-card">
         <div class="panel-heading"><div><h2>Partager une ressource</h2><p>Ajoute un lien ou un fichier de 50 Mo maximum.</p></div></div>
@@ -40,6 +39,6 @@
     </main>
   </div>
   <div id="toast" class="toast"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

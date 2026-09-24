@@ -44,6 +44,13 @@
         const sendBtn = document.getElementById('chat-send');
         let lastId = 0;
         let isFirstLoad = true;
+        const renderedMessageIds = new Set();
+
+        // Apply dark mode immediately
+        try {
+            const settings = JSON.parse(localStorage.getItem("campusflow-settings"));
+            if (settings && settings.darkMode) document.body.classList.add("dark-mode");
+        } catch(e) {}
 
         const colors = ['#A6620C','#2D6A4F','#1B4965','#7B2D8B','#C44536','#4A6FA5','#6B4226','#2E5339','#8B4513','#4A148C'];
         function getColor(username) {
@@ -97,8 +104,12 @@
                         isFirstLoad = false;
                     }
                     data.messages.forEach(msg => {
-                        messagesEl.insertAdjacentHTML('beforeend', renderMessage(msg));
-                        lastId = Math.max(lastId, parseInt(msg.id));
+                        const msgId = parseInt(msg.id);
+                        if (!renderedMessageIds.has(msgId)) {
+                            messagesEl.insertAdjacentHTML('beforeend', renderMessage(msg));
+                            renderedMessageIds.add(msgId);
+                            lastId = Math.max(lastId, msgId);
+                        }
                     });
                     messagesEl.scrollTop = messagesEl.scrollHeight;
                 }
@@ -111,6 +122,23 @@
             e.preventDefault();
             const content = input.value.trim();
             if (!content) return;
+            
+            // Optimistic UI
+            const tempMsg = {
+                id: 'temp-' + Date.now(),
+                username: currentUser,
+                display_name: currentDisplayName,
+                content: content,
+                created_at: new Date().toISOString()
+            };
+            if (isFirstLoad) {
+                messagesEl.innerHTML = '';
+                isFirstLoad = false;
+            }
+            messagesEl.insertAdjacentHTML('beforeend', renderMessage(tempMsg));
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            
+            input.value = '';
             sendBtn.disabled = true;
             try {
                 const res = await fetch('/api/chat', {
@@ -119,7 +147,11 @@
                     body: JSON.stringify({ content })
                 });
                 if (res.ok) {
-                    input.value = '';
+                    const data = await res.json();
+                    if (data.message) {
+                        renderedMessageIds.add(parseInt(data.message.id));
+                        lastId = Math.max(lastId, parseInt(data.message.id));
+                    }
                     await loadMessages();
                 }
             } catch (e) {
@@ -136,5 +168,6 @@
         setInterval(loadMessages, 3000);
     })();
     </script>
+    <script src="app.js?v=2"></script>
 </body>
 </html>

@@ -131,7 +131,7 @@ function taskMarkup(task) {
   </div>`;
 }
 function priorityName(value) { return { high: "Haute", medium: "Moyenne", low: "Basse" }[value]; }
-function escapeHtml(value) { return value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char])); }
+function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char])); }
 function render() {
   document.body.classList.toggle("dark-mode", settings.darkMode);
   const page = document.body.dataset.page || "dashboard";
@@ -265,8 +265,10 @@ function previewMarkup(resource) {
 function resourceMarkup(resource) {
   const href = resource.file_path ? `/api/resources/${encodeURIComponent(resource.id)}/download` : resource.url;
   const target = resource.file_path ? "" : ' target="_blank" rel="noopener noreferrer"';
+  const canDelete = currentUser && (currentUser.role === 'admin' || resource.owner === currentUser.username);
+  const deleteBtn = canDelete ? `<button class="delete-button" data-resource-delete="${escapeHtml(resource.id)}" aria-label="Supprimer ${escapeHtml(resource.title)}">×</button>` : '';
   return `<article class="resource-card">
-    <div class="resource-card-header"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><div class="resource-heading"><h3>${escapeHtml(resource.title)}</h3><span>${resourceTypeName(resource.type)}${resource.file_name ? ` · ${escapeHtml(resource.file_name)}` : ""}</span></div><button class="delete-button" data-resource-delete="${escapeHtml(resource.id)}" aria-label="Supprimer ${escapeHtml(resource.title)}">×</button></div>
+    <div class="resource-card-header"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><div class="resource-heading"><h3>${escapeHtml(resource.title)}</h3><span>${resourceTypeName(resource.type)}${resource.file_name ? ` · ${escapeHtml(resource.file_name)}` : ""}</span></div>${deleteBtn}</div>
     ${previewMarkup(resource)}
     <div class="resource-actions"><a class="resource-link" href="${escapeHtml(href)}"${target}>${resource.file_path ? "Télécharger le fichier" : "Ouvrir la ressource"} <span>↗</span></a><button class="report-resource" data-resource-report="${escapeHtml(resource.id)}">Signaler</button></div>
   </article>`;
@@ -490,8 +492,8 @@ if (resourceFile) resourceFile.addEventListener("change", () => {
 });
 if (resourceSource) resourceSource.addEventListener("change", () => {
   const fileMode = resourceSource.value === "file";
-  document.querySelector("#resource-link-field").style.display = fileMode ? "none" : "";
-  document.querySelector("#resource-file-field").style.display = fileMode ? "" : "none";
+  document.querySelector("#resource-link-field").style.display = fileMode ? "none" : "block";
+  document.querySelector("#resource-file-field").style.display = fileMode ? "block" : "none";
   document.querySelector("#resource-url").required = !fileMode;
   document.querySelector("#resource-file").required = fileMode;
 });
@@ -650,7 +652,7 @@ function extractEventsFromIcs(icsText) {
     if (current && line.startsWith("DTSTART")) current.start = parseIcsDate(line.split(":").slice(1).join(":"));
     if (current && line.startsWith("LOCATION:")) current.location = line.slice(9);
     if (line === "END:VEVENT" && current?.start && current.summary) {
-      events.push({ start: current.start, location: current.location || "", subject: current.summary.replace(/^(?:VG|CM|TD|CC|DS)\s*-\s*/i, "").replace(/\s*-\s*(?:CM|TD|TP|CC|DS)(?:\s*-\s*.*)?$/i, "").trim() });
+      events.push({ start: current.start.toISOString(), location: current.location || "", subject: current.summary.replace(/^(?:VG|CM|TD|CC|DS)\s*-\s*/i, "").replace(/\s*-\s*(?:CM|TD|TP|CC|DS)(?:\s*-\s*.*)?$/i, "").trim() });
       current = null;
     }
   });

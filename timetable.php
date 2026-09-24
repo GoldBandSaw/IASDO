@@ -42,6 +42,6 @@
             </section>
         </main>
     </div>
-    <script src="app.js"></script>
+    <script src="app.js?v=2"></script>
 </body>
 </html>

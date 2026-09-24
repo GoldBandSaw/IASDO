@@ -5,7 +5,7 @@ $currentPage = basename($_SERVER['SCRIPT_NAME'] ?? 'index.php');
 $displayName = trim((string)($currentUser['display_name'] ?? 'Étudiant'));
 $initial = function_exists('mb_substr') ? mb_strtoupper(mb_substr($displayName, 0, 1)) : strtoupper(substr($displayName, 0, 1));
 $navigation = [
-    ['index.php', '⌂', "Vue d'ensemble"],
+    ['index.php', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', "Vue d'ensemble"],
     ['tasks.php', '✓', 'Mes tâches'],
     ['add.php', '+', 'Ajouter une tâche'],
     ['courses.php', '▣', 'Ressources'],
@@ -26,7 +26,7 @@ $navigation = [
   <nav aria-label="Navigation principale">
     <?php foreach ($navigation as [$href, $icon, $label]): ?>
       <a class="nav-item<?= $currentPage === $href ? ' active' : '' ?>" href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>">
-        <span class="icon" aria-hidden="true"><?= htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?></span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+        <span class="icon" aria-hidden="true"><?= str_starts_with($icon, '<svg') ? $icon : htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') ?></span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
       </a>
     <?php endforeach; ?>
   </nav>

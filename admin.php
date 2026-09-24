@@ -25,14 +25,7 @@ if (!currentAdmin()) {
       <button class="sidebar-logout" id="admin-logout" type="button">Se déconnecter</button>
       <div class="sidebar-footer">Panneau indépendant de l’espace étudiant.</div>
     </aside>
-    <main class="page-content">
-      <section class="page-card">
-        <p class="eyebrow">Espace administrateur</p>
-        <h1 class="page-title">Propositions de cours</h1>
-        <p class="page-subtitle">Consulte les liens complets, supprime une ressource problématique et traite les signalements.</p>
-        <div id="admin-proposals" class="admin-list"><p class="calendar-status">Chargement…</p></div>
-      </section>
-      <section class="page-card admin-resource-panel">
+    <main class="page-content">      <section class="page-card admin-resource-panel">
         <p class="eyebrow">Bibliothèque</p><h2>Ressources publiées</h2>
         <div id="admin-resources" class="admin-list"><p class="calendar-status">Chargement…</p></div>
       </section>
@@ -43,13 +36,6 @@ if (!currentAdmin()) {
     </main>
   </div>
   <script>
-    async function loadProposals() {
-      const response = await fetch('/api/proposals');
-      if (response.status === 401) { window.location.href = 'admin-login.php'; return; }
-      const proposals = await response.json();
-      const target = document.querySelector('#admin-proposals');
-      target.innerHTML = proposals.length ? proposals.map(item => `<article class="admin-item"><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.course)} · ${escapeHtml(item.resource_type)} · <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Ouvrir le lien ↗</a></span></div><div><button class="primary-button" data-action="approve" data-id="${item.id}">Valider</button><button class="secondary-button" data-action="reject" data-id="${item.id}">Refuser</button></div></article>`).join('') : '<p class="calendar-status">Aucune proposition.</p>';
-    }
     async function loadResources() {
       const response = await fetch('/api/admin/resources');
       if (response.status === 401) { window.location.href = 'admin-login.php'; return; }
@@ -64,12 +50,6 @@ if (!currentAdmin()) {
     }
     function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
     document.addEventListener('click', async event => {
-      const button = event.target.closest('[data-action]');
-      if (!button) return;
-      await fetch(`/api/proposals/${button.dataset.id}/${button.dataset.action}`, { method: 'POST' });
-      loadProposals();
-    });
-    document.addEventListener('click', async event => {
       const button = event.target.closest('[data-report-close]');
       if (!button) return;
       await fetch(`/api/admin/reports/${encodeURIComponent(button.dataset.reportClose)}`, {method:'POST'});
@@ -82,7 +62,7 @@ if (!currentAdmin()) {
       loadResources();
     });
     document.querySelector('#admin-logout').addEventListener('click', async () => { await fetch('/api/admin/logout', {method:'POST'}); window.location.href = 'admin-login.php'; });
-    loadProposals(); loadResources(); loadReports();
+    loadResources(); loadReports();
   </script>
 </body>
 </html>
