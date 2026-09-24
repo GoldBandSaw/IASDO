@@ -35,6 +35,8 @@ Attends que Render affiche **Live**. Si le premier chargement est lent, attends 
 
 Dans **Environment**, ajoute également `ADMIN_PASSWORD` avec le mot de passe du compte `admin`, ainsi que `COMMON_CALENDAR_URL` avec le lien iCalendar commun de l'Université d'Orléans. Le compte admin est créé automatiquement au premier chargement et peut valider ou refuser les propositions depuis **Administration**.
 
+Il faut également ajouter les variables `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` pour le stockage des fichiers.
+
 ### 3. Ouvrir Supabase et mettre le schéma en place
 
 1. Dans Supabase, clique sur **SQL Editor**.
@@ -56,11 +58,11 @@ Tu dois voir les tables `users`, `sessions`, `tasks`, `settings`, `courses`, `re
 
 Si tu vois une erreur, retourne dans Render et vérifie que la variable s'appelle bien `DATABASE_URL`, sans espace.
 
-### 5. Première connexion des dix étudiants
+### 5. Première connexion des étudiants
 
-Les dix comptes sont créés automatiquement par le site au premier chargement. Aucun shell Render ni PHP local n'est nécessaire.
+Les comptes sont créés automatiquement par le site au premier chargement. Aucun shell Render ni PHP local n'est nécessaire.
 
-Les identifiants sont `antonin`, `lucas`, `aymen`, `youssef`, `maelle`, `jason`, `nolann`, `leon`, `roman` et `cedric`. Le mot de passe initial est `CampusFlow2026!` pour chacun. Chaque étudiant peut ensuite le remplacer dans **Paramètres**.
+The initial password is set via the INITIAL_PASSWORD environment variable and communicated privately by the administrator. Chaque étudiant peut ensuite le remplacer dans **Paramètres**.
 
 Un étudiant peut changer son nom affiché et son mot de passe dans **Paramètres**. Son identifiant ne change jamais.
 

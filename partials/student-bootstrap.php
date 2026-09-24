@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'db.php';
-require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'auth.php';
-$currentUser = requireUser();
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../auth.php';
+$currentUser = currentUser();
+if (!$currentUser) {
+    header('Location: /login.php');
+    exit;
+}
 ?>

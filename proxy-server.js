@@ -1,3 +1,16 @@
+/**
+ * ⚠️ DEPRECATED — This file is no longer used in production.
+ * 
+ * The application now runs on PHP 8.3 + Apache (see Dockerfile).
+ * This Node.js proxy server was used during early development and is
+ * incompatible with the current Supabase JSONB schema.
+ * 
+ * DO NOT RUN THIS SERVER — it will expose PHP source code
+ * and use an incompatible database schema.
+ * 
+ * Kept for historical reference only.
+ */
+
 require("dotenv").config();
 const http = require("http");
 const https = require("https");

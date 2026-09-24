@@ -9,6 +9,7 @@ $navigation = [
     ['tasks.php', '✓', 'Mes tâches'],
     ['add.php', '+', 'Ajouter une tâche'],
     ['courses.php', '▣', 'Ressources'],
+    ['chat.php', '💬', 'Chat promo'],
     ['timetable.php', '▦', 'Emploi du temps'],
     ['settings.php', '⚙', 'Paramètres'],
 ];

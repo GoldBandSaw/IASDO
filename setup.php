@@ -8,7 +8,7 @@
     <h1>Choisis ton mot de passe.</h1>
     <p class="auth-intro">Ce lien est personnel et ne peut être utilisé qu'une seule fois. Ton identifiant restera inchangé.</p>
     <form id="setup-form">
-      <label>Identifiant<input id="setup-username" autocomplete="username" required></label>
+      <label>Identifiant<input id="setup-username" autocomplete="username" required readonly></label>
       <label>Nouveau mot de passe<input id="setup-password" type="password" minlength="10" autocomplete="new-password" required></label>
       <label>Confirmer le mot de passe<input id="setup-confirm" type="password" minlength="10" autocomplete="new-password" required></label>
       <button class="primary-button" type="submit">Activer mon compte</button>

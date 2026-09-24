@@ -1,19 +1,7 @@
 <?php
 declare(strict_types=1);
 
-function database(): PDO {
-    static $db;
-    if ($db instanceof PDO) return $db;
-    $url = getenv('DATABASE_URL') ?: '';
-    if ($url === '') throw new RuntimeException('DATABASE_URL manquante.');
-    $parts = parse_url($url);
-    if (!$parts || empty($parts['host']) || empty($parts['user']) || !isset($parts['pass'])) {
-        throw new RuntimeException('DATABASE_URL invalide.');
-    }
-    $database = ltrim($parts['path'] ?? '', '/');
-    $dsn = 'pgsql:host=' . $parts['host'] . ';port=' . ($parts['port'] ?? 5432) . ';dbname=' . $database . ';sslmode=require';
-    $db = new PDO($dsn, urldecode($parts['user']), urldecode($parts['pass']));
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+function initializeSchema(PDO $db): void {
     $db->exec('CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, payload JSONB NOT NULL)');
     $db->exec('CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY CHECK (id = 1), payload JSONB NOT NULL)');
     $db->exec('CREATE TABLE IF NOT EXISTS user_settings (username TEXT PRIMARY KEY, payload JSONB NOT NULL)');
@@ -26,6 +14,9 @@ function database(): PDO {
     $db->exec('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_fixed_username');
     $db->exec("ALTER TABLE users ADD CONSTRAINT users_fixed_username CHECK (username IN ('admin', 'antonin', 'lucas', 'aymen', 'youssef', 'maelle', 'jason', 'nolann', 'leon', 'roman', 'cedric'))");
     $db->exec('CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, data TEXT NOT NULL, last_activity BIGINT NOT NULL)');
+    $db->exec('CREATE TABLE IF NOT EXISTS messages (id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL, content TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())');
+    $db->exec('CREATE INDEX IF NOT EXISTS idx_messages_id ON messages (id)');
+    
     $users = ['antonin', 'lucas', 'aymen', 'youssef', 'maelle', 'jason', 'nolann', 'leon', 'roman', 'cedric'];
     $initialPassword = getenv('INITIAL_PASSWORD') ?: 'CampusFlow2026!';
     $initialHash = password_hash($initialPassword, PASSWORD_DEFAULT);
@@ -49,6 +40,27 @@ function database(): PDO {
                 password_hash = CASE WHEN users.password_hash = \'\' THEN EXCLUDED.password_hash ELSE users.password_hash END
         ');
         $admin->execute([password_hash($adminPassword, PASSWORD_DEFAULT)]);
+    }
+}
+
+function database(): PDO {
+    static $db;
+    if ($db instanceof PDO) return $db;
+    $url = getenv('DATABASE_URL') ?: '';
+    if ($url === '') throw new RuntimeException('DATABASE_URL manquante.');
+    $parts = parse_url($url);
+    if (!$parts || empty($parts['host']) || empty($parts['user']) || !isset($parts['pass'])) {
+        throw new RuntimeException('DATABASE_URL invalide.');
+    }
+    $database = ltrim($parts['path'] ?? '', '/');
+    $dsn = 'pgsql:host=' . $parts['host'] . ';port=' . ($parts['port'] ?? 5432) . ';dbname=' . $database . ';sslmode=require';
+    $db = new PDO($dsn, urldecode($parts['user']), urldecode($parts['pass']));
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    static $initialized = false;
+    if (!$initialized) {
+        initializeSchema($db);
+        $initialized = true;
     }
     return $db;
 }

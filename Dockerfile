@@ -13,4 +13,9 @@ COPY apache-vhost.conf /etc/apache2/sites-available/000-default.conf
 
 RUN chown -R www-data:www-data /var/www/html
 
+# Security hardening
+RUN echo 'ServerTokens Prod' >> /etc/apache2/conf-available/security.conf && \
+    echo 'ServerSignature Off' >> /etc/apache2/conf-available/security.conf && \
+    a2enconf security
+
 EXPOSE 10000

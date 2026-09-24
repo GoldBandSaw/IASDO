@@ -35,18 +35,35 @@ function startSession(string $sessionName = 'CAMPUSFLOW_SESSION'): void {
             'path' => '/',
             'httponly' => true,
             'samesite' => 'Lax',
-            'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'
+            'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
+            (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'),
         ]);
         session_start();
     }
 }
 
 function requireSameOrigin(): void {
-    $origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
-    if ($origin === '') return;
-    $expected = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http')
-        . '://' . ($_SERVER['HTTP_HOST'] ?? '');
-    if (!hash_equals($expected, $origin)) respond(['error' => 'Origine de requête invalide.'], 403);
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? null;
+    $referer = $_SERVER['HTTP_REFERER'] ?? null;
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    
+    if ($origin) {
+        $parsed = parse_url($origin);
+        if (($parsed['host'] ?? '') !== $host) {
+            respond(['error' => 'Origin non autorisée'], 403);
+        }
+        return;
+    }
+    
+    if ($referer) {
+        $parsed = parse_url($referer);
+        if (($parsed['host'] ?? '') !== $host) {
+            respond(['error' => 'Origin non autorisée'], 403);
+        }
+        return;
+    }
+    
+    // No Origin or Referer — allow (non-browser client)
 }
 
 function currentUser(): ?array {

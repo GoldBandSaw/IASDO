@@ -3,7 +3,7 @@ const COURSES_STORAGE_KEY = "campusflow-courses";
 const COURSE_RESOURCES_STORAGE_KEY = "campusflow-course-resources";
 const CALENDAR_URL_KEY = "campusflow-calendar-url";
 const SETTINGS_KEY = "campusflow-settings";
-const today = new Date();
+function getToday() { return new Date(); }
 const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 const defaultTasks = [
   { id: 1, title: "Fiche de lecture — chapitre 4", course: "Sociologie", due: addDays(1), priority: "high", done: false },
@@ -22,7 +22,7 @@ let weekOffset = 0;
 const apiEnabled = window.location.protocol !== "file:";
 
 function addDays(amount) {
-  const date = new Date(today);
+  const date = new Date(getToday());
   date.setHours(12, 0, 0, 0);
   date.setDate(date.getDate() + amount);
   return localDateKey(date);
@@ -52,7 +52,9 @@ function loadCourses() {
 function saveCourses() {
   localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify(courses));
   if (apiEnabled) {
-    for (const name of courses) apiRequest("/api/courses", "POST", { name }).catch(error => console.error("Enregistrement de la matière impossible.", error));
+    Promise.all(courses.map(name => apiRequest("/api/courses", "POST", { name })))
+      .catch(error => console.error("Enregistrement de la matière impossible.", error));
+    // Note: Future improvement: batch into a single API request if backend supports it
   }
 }
 function loadCourseResources() {
@@ -109,7 +111,7 @@ function fetchCalendar() {
 }
 function dateFromString(value) { return new Date(`${value}T12:00:00`); }
 function daysUntil(value) {
-  return Math.ceil((dateFromString(value) - new Date(`${localDateKey(today)}T12:00:00`)) / 86400000);
+  return Math.ceil((dateFromString(value) - new Date(`${localDateKey(getToday())}T12:00:00`)) / 86400000);
 }
 function formatDue(value) {
   const days = daysUntil(value);
@@ -156,17 +158,26 @@ function render() {
   const weekTasks = openTasks.filter(task => daysUntil(task.due) >= 0 && daysUntil(task.due) <= 7);
   const urgentTasks = openTasks.filter(task => daysUntil(task.due) >= 0 && daysUntil(task.due) <= 3);
   const progress = tasks.length ? Math.round(tasks.filter(task => task.done).length / tasks.length * 100) : 0;
-  document.querySelector("#today-label").textContent = today.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-  document.querySelector("#week-count").textContent = weekTasks.length;
-  document.querySelector("#week-trend").textContent = weekTasks.length ? "à planifier" : "semaine libre";
-  document.querySelector("#urgent-count").textContent = urgentTasks.length;
-  document.querySelector("#progress-value").textContent = `${progress}%`;
-  document.querySelector(".progress-ring").style.setProperty("--progress", `${progress}%`);
-  document.querySelector("#task-subtitle").textContent = `${tasks.length} tâche${tasks.length > 1 ? "s" : ""} enregistrée${tasks.length > 1 ? "s" : ""}`;
+  const todayLabel = document.querySelector("#today-label");
+  if (todayLabel) todayLabel.textContent = getToday().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  const weekCount = document.querySelector("#week-count");
+  if (weekCount) weekCount.textContent = weekTasks.length;
+  const weekTrend = document.querySelector("#week-trend");
+  if (weekTrend) weekTrend.textContent = weekTasks.length ? "à planifier" : "semaine libre";
+  const urgentCount = document.querySelector("#urgent-count");
+  if (urgentCount) urgentCount.textContent = urgentTasks.length;
+  const progressValue = document.querySelector("#progress-value");
+  if (progressValue) progressValue.textContent = `${progress}%`;
+  const progressRing = document.querySelector(".progress-ring");
+  if (progressRing) progressRing.style.setProperty("--progress", `${progress}%`);
+  const taskSubtitle = document.querySelector("#task-subtitle");
+  if (taskSubtitle) taskSubtitle.textContent = `${tasks.length} tâche${tasks.length > 1 ? "s" : ""} enregistrée${tasks.length > 1 ? "s" : ""}`;
   const sorted = [...openTasks].sort((a, b) => dateFromString(a.due) - dateFromString(b.due));
-  document.querySelector("#upcoming-list").innerHTML = sorted.length ? sorted.slice(0, 4).map(taskMarkup).join("") : emptyMarkup("Tout est à jour !", "Profite de ce temps pour souffler.");
+  const upcomingList = document.querySelector("#upcoming-list");
+  if (upcomingList) upcomingList.innerHTML = sorted.length ? sorted.slice(0, 4).map(taskMarkup).join("") : emptyMarkup("Tout est à jour !", "Profite de ce temps pour souffler.");
   const filtered = tasks.filter(task => currentFilter === "all" || (currentFilter === "done" ? task.done : !task.done)).sort((a, b) => dateFromString(a.due) - dateFromString(b.due));
-  document.querySelector("#all-tasks-list").innerHTML = filtered.length ? filtered.map(taskMarkup).join("") : emptyMarkup("Aucune tâche ici", "Ajoute un travail pour commencer.");
+  const allTasksList = document.querySelector("#all-tasks-list");
+  if (allTasksList) allTasksList.innerHTML = filtered.length ? filtered.map(taskMarkup).join("") : emptyMarkup("Aucune tâche ici", "Ajoute un travail pour commencer.");
   renderCourses();
   renderSettings();
   renderTimetable();
@@ -198,7 +209,7 @@ function renderTimetable() {
   if (grid) grid.innerHTML = renderWeekGrid(weekStart, visibleEvents);
 }
 function getWeekStart(offset) {
-  const date = new Date(today); date.setHours(0, 0, 0, 0);
+  const date = new Date(getToday()); date.setHours(0, 0, 0, 0);
   const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
   date.setDate(date.getDate() + mondayOffset + offset * 7);
   return date;
@@ -279,7 +290,8 @@ function renderCoursesPage() {
 function emptyMarkup(title, text) { return `<div class="empty-state"><strong>${title}</strong>${text}</div>`; }
 function renderWeekChart() {
   const chart = document.querySelector("#week-chart");
-  const start = new Date(today); start.setDate(today.getDate() - (today.getDay() || 7) + 1);
+  if (!chart) return;
+  const start = new Date(getToday()); start.setDate(getToday().getDate() - (getToday().getDay() || 7) + 1);
   const counts = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start); date.setDate(start.getDate() + index);
     return tasks.filter(task => !task.done && task.due === localDateKey(date)).length;
@@ -287,7 +299,7 @@ function renderWeekChart() {
   const max = Math.max(...counts, 1);
   chart.innerHTML = counts.map((count, index) => {
     const date = new Date(start); date.setDate(start.getDate() + index);
-    const isToday = localDateKey(date) === localDateKey(today);
+    const isToday = localDateKey(date) === localDateKey(getToday());
     return `<div class="bar-wrap"><span class="bar-count">${count || ""}</span><div class="bar ${isToday ? "today" : ""}" style="height:${Math.max(count / max * 82, 4)}px"></div><span class="bar-label">${dayNames[date.getDay()]}</span></div>`;
   }).join("");
 }
@@ -296,7 +308,12 @@ function renderDashboardResources() {
   if (!list) return;
   const recent = [...courseResources].slice(-4).reverse();
   list.innerHTML = recent.length
-    ? recent.map(resource => `<a class="recent-resource" href="${escapeHtml(resource.url)}" target="_blank" rel="noopener noreferrer"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)} · ${resourceTypeName(resource.type)}</small></span><span aria-hidden="true">↗</span></a>`).join("")
+    ? recent.map(resource => {
+        const href = resource.url || resource.signed_url;
+        return href
+          ? `<a class="recent-resource" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)} · ${resourceTypeName(resource.type)}</small></span><span aria-hidden="true">↗</span></a>`
+          : `<div class="recent-resource"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)} · ${resourceTypeName(resource.type)}</small></span></div>`;
+      }).join("")
     : emptyMarkup("Aucune ressource partagée", "La bibliothèque se remplira dès que quelqu'un ajoutera un lien.");
 }
 function renderNextStep() {
@@ -355,30 +372,31 @@ document.addEventListener("click", event => {
     event.preventDefault();
     showView(nav.dataset.view);
   }
+  const resourceDelete = event.target.closest("[data-resource-delete]");
+  if (resourceDelete) {
+    const resourceId = resourceDelete.dataset.resourceDelete;
+    courseResources = courseResources.filter(resource => String(resource.id) !== resourceId);
+    saveCourseResources();
+    apiRequest(`/api/resources/${resourceId}`, "DELETE").catch(error => console.error("Suppression de la ressource impossible.", error));
+    renderCoursesPage();
+    showToast("Ressource supprimée");
+    return;
+  }
   const action = event.target.closest("[data-action]");
   if (action) {
-    const id = Number(action.dataset.id);
+    const id = action.dataset.id;
     if (action.dataset.action === "edit-task") {
-      openTaskEditor(tasks.find(task => task.id === id));
+      openTaskEditor(tasks.find(task => String(task.id) === id));
       return;
     }
     if (action.dataset.action === "toggle") {
-      tasks = tasks.map(task => task.id === id ? { ...task, done: !task.done } : task);
-      const changed = tasks.find(task => task.id === id);
+      tasks = tasks.map(task => String(task.id) === id ? { ...task, done: !task.done } : task);
+      const changed = tasks.find(task => String(task.id) === id);
       if (changed) apiRequest(`/api/tasks/${id}`, "PUT", changed).catch(error => console.error("Mise à jour de la tâche impossible.", error));
       showToast("Progression mise à jour");
     }
-    const resourceDelete = event.target.closest("[data-resource-delete]");
-    if (resourceDelete) {
-      const resourceId = Number(resourceDelete.dataset.resourceDelete);
-      courseResources = courseResources.filter(resource => resource.id !== resourceId);
-      saveCourseResources();
-      apiRequest(`/api/resources/${resourceId}`, "DELETE").catch(error => console.error("Suppression de la ressource impossible.", error));
-      renderCoursesPage();
-      showToast("Ressource supprimée");
-    }
     if (action.dataset.action === "delete") {
-      tasks = tasks.filter(task => task.id !== id);
+      tasks = tasks.filter(task => String(task.id) !== id);
       apiRequest(`/api/tasks/${id}`, "DELETE").catch(error => console.error("Suppression de la tâche impossible.", error));
       showToast("Tâche supprimée");
     }
@@ -425,7 +443,7 @@ function openTaskEditor(task) {
     document.body.appendChild(modal);
     modal.addEventListener("submit", event => {
       event.preventDefault();
-      const current = tasks.find(item => item.id === Number(modal.dataset.taskId));
+      const current = tasks.find(item => String(item.id) === modal.dataset.taskId);
       if (!current) return;
       Object.assign(current, {
         title: document.querySelector("#edit-task-title").value.trim(),
@@ -638,9 +656,24 @@ function extractEventsFromIcs(icsText) {
   });
   return events.sort((a, b) => new Date(a.start) - new Date(b.start));
 }
-function parseIcsDate(value) {
-  const clean = value.replace("Z", "");
-  return new Date(`${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}T${clean.slice(9, 11)}:${clean.slice(11, 13)}:${clean.slice(13, 15)}${value.endsWith("Z") ? "Z" : ""}`).toISOString();
+function parseIcsDate(str) {
+    if (!str) return null;
+    try {
+        // Remove any TZID prefix
+        const dateStr = str.includes(':') ? str.split(':').pop() : str;
+        if (dateStr.length === 8) {
+            // All-day event: YYYYMMDD
+            return new Date(dateStr.slice(0,4) + '-' + dateStr.slice(4,6) + '-' + dateStr.slice(6,8) + 'T00:00:00');
+        }
+        // Full datetime: YYYYMMDDTHHMMSSZ or YYYYMMDDTHHMMSS
+        const y = dateStr.slice(0,4), mo = dateStr.slice(4,6), d = dateStr.slice(6,8);
+        const h = dateStr.slice(9,11), mi = dateStr.slice(11,13), s = dateStr.slice(13,15);
+        const date = new Date(y + '-' + mo + '-' + d + 'T' + h + ':' + mi + ':' + s + 'Z');
+        if (isNaN(date.getTime())) return null;
+        return date;
+    } catch (e) {
+        return null;
+    }
 }
 function extractCoursesFromIcs(icsText) {
   const unfolded = icsText.replace(/\r?\n[ \t]/g, "").split(/\r?\n/);
@@ -656,7 +689,7 @@ function extractCoursesFromIcs(icsText) {
   return [...new Set(subjects)].sort((a, b) => a.localeCompare(b, "fr"));
 }
 const taskDate = document.querySelector("#task-date");
-if (taskDate) taskDate.min = localDateKey(today);
+if (taskDate) taskDate.min = localDateKey(getToday());
 ensureCoursesNav();
 render();
 syncInitialState();
