@@ -3,17 +3,6 @@
     Require all denied
 </FilesMatch>
 
-# Block internal directories
-<DirectoryMatch "^.*/partials">
-    Require all denied
-</DirectoryMatch>
-<DirectoryMatch "^.*/supabase">
-    Require all denied
-</DirectoryMatch>
-<DirectoryMatch "^.*/node_modules">
-    Require all denied
-</DirectoryMatch>
-
 RewriteEngine On
 
 # Keep the API behind api.php and let PHP enforce the session.
