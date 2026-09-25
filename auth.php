@@ -2,6 +2,12 @@
 declare(strict_types=1);
 
 function startSession(string $sessionName = 'CAMPUSFLOW_SESSION'): void {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        if (session_name() === $sessionName) {
+            return;
+        }
+        session_write_close();
+    }
     if (session_status() === PHP_SESSION_NONE) {
         session_name($sessionName);
         ini_set('session.use_strict_mode', '1');

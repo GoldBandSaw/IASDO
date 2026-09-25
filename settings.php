@@ -7,7 +7,7 @@
     <title>CampusFlow — Paramètres</title>
     <link rel="stylesheet" href="page-shell.css">
     <link rel="stylesheet" href="shared-pages.css">
-    <link rel="stylesheet" href="modern.css">
+    <link rel="stylesheet" href="modern.css?v=7">
 </head>
 <body data-page="settings">
     <div class="app-shell">

@@ -112,7 +112,10 @@ if ($path === 'api/public/state' && $method === 'GET') {
 $adminRoute = ($path === 'api/admin/resources') || (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'admin' && $parts[2] === 'resources') || ($path === 'api/admin/reports') || ($path === 'api/proposals' && $method === 'GET') || (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'proposals');
 $downloadRoute = count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'resources' && $parts[3] === 'download';
 if ($downloadRoute) {
-    $authenticatedUser = currentAdmin() ?: requireUser();
+    $authenticatedUser = currentUser() ?: currentAdmin();
+    if (!$authenticatedUser) {
+        respond(['error' => 'Authentification requise'], 401);
+    }
 } else {
     $authenticatedUser = $adminRoute ? requireAdmin() : requireUser();
 }

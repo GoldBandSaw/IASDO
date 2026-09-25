@@ -402,4 +402,24 @@ body.dark-mode .toast{background:#F3F1EA;color:var(--cover)}
     .page-card {
         padding: 16px;
     }
+    .sidebar {
+        display: flex !important;
+        flex-direction: column !important;
+        padding: 24px 18px !important;
+    }
+    .sidebar nav {
+        display: flex !important;
+        flex-direction: column !important;
+        margin-top: 0 !important;
+        overflow: visible !important;
+        gap: 2px !important;
+    }
+    .sidebar .nav-item {
+        white-space: normal !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    .sidebar-label, .sidebar-tip, .sidebar-footer {
+        display: block !important;
+    }
 }

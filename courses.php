@@ -7,7 +7,7 @@
   <title>CampusFlow — Mes cours</title>
   <link rel="stylesheet" href="page-shell.css">
   <link rel="stylesheet" href="shared-pages.css">
-  <link rel="stylesheet" href="modern.css">
+  <link rel="stylesheet" href="modern.css?v=7">
   <link rel="stylesheet" href="courses.css">
 </head>
 <body data-page="courses">
