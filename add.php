@@ -38,8 +38,10 @@
                             <span>Journée entière</span>
                         </label>
                     </div>
-                    <label class="share-task-label">
-                        <input id="task-shared" type="checkbox"> Partager avec la promotion
+                    <label class="share-task-label switch-label">
+                        <input id="task-shared" type="checkbox">
+                        <span class="switch"></span>
+                        <span>Partager avec la promotion</span>
                     </label>
                     <label>Priorité
                         <select id="task-priority">

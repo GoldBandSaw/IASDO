@@ -112,7 +112,7 @@ async function syncInitialState() {
 async function loadAllResources() {
   try {
     const data = await apiRequest("/api/resources?limit=50", "GET");
-    if (Array.isArray(data.resources) && data.resources.length) {
+    if (Array.isArray(data.resources)) {
       courseResources = data.resources;
       saveCourseResources();
       renderCoursesPage();
@@ -507,7 +507,7 @@ function openTaskEditor(task) {
       <label>Matière<input id="edit-task-course" list="edit-course-options" required><datalist id="edit-course-options"></datalist></label>
       <label>Date limite<input id="edit-task-date" type="date" required></label>
       <label>Priorité<select id="edit-task-priority"><option value="high">Haute</option><option value="medium">Moyenne</option><option value="low">Basse</option></select></label>
-      <label class="share-task-label"><input id="edit-task-shared" type="checkbox"> Partager avec la promotion</label>
+      <label class="share-task-label switch-label"><input id="edit-task-shared" type="checkbox"><span class="switch"></span><span>Partager avec la promotion</span></label>
       <div class="task-editor-actions"><button class="secondary-button" value="cancel">Annuler</button><button class="primary-button" id="save-task-edit" value="default">Enregistrer</button></div>
     </form>`;
     document.body.appendChild(modal);
