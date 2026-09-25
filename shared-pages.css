@@ -12,13 +12,13 @@
 .remove-avatar-btn:hover{color:#b03030}
 
 /* ── Proportional Timetable Grid ── */
-.timetable-page-grid{display:flex;gap:0;overflow-x:auto;border:1px solid #e4eaf3;border-radius:12px;background:#fff}
-.tt-time-ruler{flex:0 0 40px;position:relative;min-height:700px;padding-top:44px;border-right:1px solid #e4eaf3;background:#f8faff}
-.tt-hour-line{position:absolute;left:0;right:-100vw;display:flex;align-items:flex-start;pointer-events:none;border-top:1px solid #e8edf5}
+.timetable-page-grid{display:grid;grid-template-columns:auto repeat(7, minmax(0, 1fr));max-width:100%;gap:0;overflow-x:auto;border:1px solid #e4eaf3;border-radius:12px;background:#fff}
+.tt-time-ruler{grid-column:1;position:relative;min-height:700px;padding-top:0;border-top:60px solid transparent;border-right:1px solid #e4eaf3;background:#f8faff;background-clip:border-box}
+.tt-hour-line{position:absolute;left:0;right:0;display:flex;align-items:flex-start;pointer-events:none;border-top:1px solid #e8edf5}
 .tt-hour-line:first-child{border-top:none}
 .tt-hour-line span{font-size:9px;color:var(--muted,#9ba7b8);line-height:1;padding:0 3px;white-space:nowrap;transform:translateY(-50%);background:#f8faff}
-.tt-days-row{display:flex;flex:1;position:relative;min-height:700px;padding-top:44px}
-.tt-day-col{flex:1;min-width:80px;display:flex;flex-direction:column;border-right:1px solid #e4eaf3}
+.tt-days-row{display:contents}
+.tt-day-col{grid-column:span 1;position:relative;padding-top:60px;display:flex;flex-direction:column;min-width:80px;border-right:1px solid #e4eaf3}
 .tt-day-col:last-child{border-right:none}
 .tt-day-col.tt-today .tt-day-header strong{background:var(--accent,#A6620C);color:#fff;border-radius:50%}
 .tt-day-header{display:flex;justify-content:space-between;align-items:center;padding:8px 8px 6px;background:#fff;border-bottom:2px solid #e4eaf3;position:absolute;top:0;left:0;right:0;height:44px;box-sizing:border-box;z-index:3}

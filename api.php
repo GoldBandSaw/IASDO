@@ -150,7 +150,7 @@ if ($path === 'api/state' && $method === 'GET') {
     $settings = $settingsRow ? json_decode($settingsRow, true) : null;
     $courses = $db->query('SELECT name FROM courses ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
     // Resources loaded separately via /api/resources for performance — only send recent 20 here
-    $resStmt = $db->prepare("SELECT payload FROM resources ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT 20");
+    $resStmt = $db->prepare("SELECT jsonb_build_object('id', id, 'title', payload->>'title', 'course', payload->>'course', 'type', payload->>'type', 'url', payload->>'url', 'created_at', payload->>'created_at', 'file_path', payload->>'file_path') AS payload FROM resources ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT 5");
     $resStmt->execute();
     $resources = array_values(array_filter(array_map(fn($row) => json_decode($row['payload'], true), $resStmt->fetchAll(PDO::FETCH_ASSOC)), 'is_array'));
     respond(['tasks' => $tasks, 'settings' => $settings, 'courses' => $courses, 'resources' => $resources]);

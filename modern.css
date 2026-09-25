@@ -60,6 +60,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{
   border-right:0;
   box-shadow:0 0 0 1px var(--cover-line),18px 0 40px -28px rgba(10,14,32,.6);
   padding:30px 18px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .brand{
   color:#F4F1FA;
@@ -270,7 +274,7 @@ label{display:block;color:var(--muted);font-size:12px;font-weight:700}
 .calendar-status{font-size:12px;line-height:1.4}
 .page-title{line-height:1.1}
 .page-subtitle{line-height:1.5}
-@media(max-width:900px){.timetable-page-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:900px){/* removed invalid grid-template-columns for timetable-page-grid */}
 @media(max-width:650px){
   .topbar h1{font-size:27px}
   .panel,.page-card{border-radius:15px;padding:20px}
@@ -280,7 +284,7 @@ label{display:block;color:var(--muted);font-size:12px;font-weight:700}
   .workspace-strip{display:block;padding:21px}.workspace-link{display:inline-block;margin:18px 0 0 52px}
   .privacy-card{align-items:flex-start;padding:16px}.privacy-card a{display:none}
   .form-row{grid-template-columns:1fr}
-  .timetable-page-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .timetable-page-grid{gap:8px}
   .day-events{padding:7px}
   .day-events .timetable-event{padding:10px}
   .day-events .timetable-event strong{font-size:11px}
