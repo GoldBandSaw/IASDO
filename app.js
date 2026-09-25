@@ -96,15 +96,29 @@ async function syncInitialState() {
       courses = state.courses;
       saveCourses();
     }
+    // Resources arrive with the state (recent 20), but we also set a fresh copy
     if (Array.isArray(state.resources)) {
       courseResources = state.resources;
       saveCourseResources();
     }
     saveTasks();
     render();
+    // If on courses page, fetch full list in the background
+    if (document.body.dataset.page === "courses") loadAllResources();
   } catch (error) {
     console.error("Synchronisation de la base impossible.", error);
   }
+}
+async function loadAllResources() {
+  try {
+    const data = await apiRequest("/api/resources?limit=50", "GET");
+    if (Array.isArray(data.resources) && data.resources.length) {
+      courseResources = data.resources;
+      saveCourseResources();
+      renderCoursesPage();
+      renderDashboardResources();
+    }
+  } catch (e) { /* non-critical */ }
 }
 function fetchCalendar() {
   return fetch("/api/timetable", { cache: "no-store" });
@@ -196,8 +210,7 @@ function renderSettings() {
   }
   const accountName = document.querySelector("#account-name");
   if (accountName) accountName.value = currentUser?.display_name || "";
-  const accountPic = document.querySelector("#account-pic");
-  if (accountPic) accountPic.value = currentUser?.profile_picture || "";
+  // Avatar preview is initialized by initAvatarUpload(), not here
 }
 function renderTimetable() {
   const grid = document.querySelector("#timetable-grid");
@@ -218,29 +231,67 @@ function getWeekStart(offset) {
   return date;
 }
 function renderWeekGrid(weekStart, events) {
+  const GRID_START_H = 6;   // 06:00
+  const GRID_END_H   = 20;  // 20:00
+  const TOTAL_MINS   = (GRID_END_H - GRID_START_H) * 60; // 840 min
+
+  function pct(mins) { return (Math.max(0, Math.min(TOTAL_MINS, mins)) / TOTAL_MINS * 100).toFixed(3); }
+
+  // Build hour-ruler markup (every hour = one tick)
+  const rulerHours = [];
+  for (let h = GRID_START_H; h <= GRID_END_H; h++) {
+    const top = pct((h - GRID_START_H) * 60);
+    rulerHours.push(`<div class="tt-hour-line" style="top:${top}%"><span>${String(h).padStart(2,"0")}h</span></div>`);
+  }
+
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart); date.setDate(weekStart.getDate() + index);
     const key = localDateKey(date);
     const dayEvents = events.filter(event => event.start.slice(0, 10) === key);
-    const dayTasks = tasks.filter(task => !task.done && task.due === key).map(task => ({
+    const dayTasks  = tasks.filter(task => !task.done && task.due === key).map(task => ({
       start: task.allDay || !task.time ? `${key}T00:00:00` : `${key}T${task.time}:00`,
+      end:   task.allDay || !task.time ? null : `${key}T${task.time}:00`,
       subject: task.title,
       location: task.course,
       isTask: true,
       allDay: task.allDay || !task.time
     }));
-    const items = [...dayEvents, ...dayTasks].sort((a, b) => new Date(a.start) - new Date(b.start));
-    return `<div class="day-column"><header><span>${date.toLocaleDateString("fr-FR", { weekday: "short" })}</span><strong>${date.getDate()}</strong></header><div class="day-events">${items.length ? items.map(event => `<article class="timetable-event ${event.isTask ? "task-event" : ""}"><time>${event.allDay ? "Toute la journée" : new Date(event.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</time><strong>${escapeHtml(event.subject)}</strong><span>${escapeHtml(event.isTask ? event.location : (event.location || "Lieu non indiqué"))}</span></article>`).join("") : '<p class="no-course">Aucun cours</p>'}</div></div>`;
+    const allDay = [...dayEvents.filter(e => !e.end), ...dayTasks.filter(t => t.allDay)];
+    const timed  = [...dayEvents.filter(e => e.end), ...dayTasks.filter(t => !t.allDay)];
+
+    const timedHtml = timed.map(event => {
+      const startDate = new Date(event.start);
+      const endDate   = event.end ? new Date(event.end) : new Date(startDate.getTime() + 60 * 60 * 1000);
+      const startMins = (startDate.getHours() - GRID_START_H) * 60 + startDate.getMinutes();
+      const endMins   = (endDate.getHours()   - GRID_START_H) * 60 + endDate.getMinutes();
+      const topPct    = pct(startMins);
+      const heightPct = pct(Math.max(30 / TOTAL_MINS * 100, endMins - startMins)); // min 30px equivalent
+      const label     = event.allDay ? "Toute la journée"
+                      : `${startDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}–${endDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+      return `<article class="timetable-event timetable-event--abs ${event.isTask ? "task-event" : ""}" style="top:${topPct}%;height:${heightPct}%">
+        <time>${label}</time>
+        <strong>${escapeHtml(event.subject)}</strong>
+        <span>${escapeHtml(event.isTask ? event.location : (event.location || ""))}</span>
+      </article>`;
+    }).join("");
+
+    const allDayHtml = allDay.map(event => `<article class="timetable-event timetable-event--allday ${event.isTask ? "task-event" : ""}">
+      <time>Toute la journée</time><strong>${escapeHtml(event.subject)}</strong>
+      <span>${escapeHtml(event.location || "")}</span>
+    </article>`).join("");
+
+    const isToday = key === localDateKey(getToday());
+    return `<div class="tt-day-col${isToday ? " tt-today" : ""}">
+      <div class="tt-day-header">
+        <span>${date.toLocaleDateString("fr-FR", { weekday: "short" })}</span>
+        <strong>${date.getDate()}</strong>
+      </div>
+      ${allDayHtml ? `<div class="tt-allday-strip">${allDayHtml}</div>` : ""}
+      <div class="tt-events-area">${timedHtml || '<p class="no-course">Aucun cours</p>'}</div>
+    </div>`;
   });
-  return days.join("");
-  /*
-  const list = document.querySelector("#timetable-list");
-  if (!timetableEvents.length) {
-    list.innerHTML = emptyMarkup("Aucun cours chargé", "Importe ton emploi du temps dans les paramètres.");
-    return;
-  }
-  list.innerHTML = timetableEvents.slice(0, 30).map(event => `<article class="timetable-event"><time>${formatEventDate(event.start)}</time><div><strong>${escapeHtml(event.subject)}</strong><span>${escapeHtml(event.location || "Lieu non indiqué")}</span></div></article>`).join("");
-  */
+
+  return `<div class="tt-time-ruler">${rulerHours.join("")}</div><div class="tt-days-row">${days.join("")}</div>`;
 }
 function formatEventDate(value) {
   const date = new Date(value);
@@ -321,7 +372,9 @@ function renderWeekChart() {
 function renderDashboardResources() {
   const list = document.querySelector("#recent-resources");
   if (!list) return;
-  const recent = [...courseResources].slice(-4).reverse();
+  const recent = [...courseResources]
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, 4);
   list.innerHTML = recent.length
     ? recent.map(resource => {
         const href = resource.file_path ? `/api/resources/${encodeURIComponent(resource.id)}/download` : resource.url;
@@ -501,17 +554,20 @@ if (courseForm) courseForm.addEventListener("submit", event => {
 const resourceForm = document.querySelector("#resource-form");
 const resourceSource = document.querySelector("#resource-source");
 const resourceFile = document.querySelector("#resource-file");
-if (resourceFile) resourceFile.addEventListener("change", () => {
-  const title = document.querySelector("#resource-title");
-  if (resourceFile.files[0] && title && !title.value.trim()) title.value = resourceFile.files[0].name.replace(/\.[^.]+$/, "");
-});
-if (resourceSource) resourceSource.addEventListener("change", () => {
+function applyResourceSourceMode() {
+  if (!resourceSource) return;
   const fileMode = resourceSource.value === "file";
-  document.querySelector("#resource-link-field").style.display = fileMode ? "none" : "block";
-  document.querySelector("#resource-file-field").style.display = fileMode ? "block" : "none";
-  document.querySelector("#resource-url").required = !fileMode;
-  document.querySelector("#resource-file").required = fileMode;
-});
+  const linkField = document.querySelector("#resource-link-field");
+  const fileField = document.querySelector("#resource-file-field");
+  const urlInput  = document.querySelector("#resource-url");
+  const fileInput = document.querySelector("#resource-file");
+  if (linkField) linkField.style.display = fileMode ? "none" : "block";
+  if (fileField) fileField.style.display = fileMode ? "block" : "none";
+  if (urlInput)  urlInput.required  = !fileMode;
+  if (fileInput) fileInput.required = fileMode;
+}
+applyResourceSourceMode(); // set correct visibility on first render
+if (resourceSource) resourceSource.addEventListener("change", applyResourceSourceMode);
 if (resourceForm) resourceForm.addEventListener("submit", async event => {
   event.preventDefault();
   const course = document.querySelector("#resource-course").value;
@@ -521,14 +577,29 @@ if (resourceForm) resourceForm.addEventListener("submit", async event => {
   if (resourceSource?.value === "file") {
     if (!file) { showToast("Choisis un fichier"); return; }
     if (file.size > 50 * 1024 * 1024) { showToast("Le fichier ne doit pas dépasser 50 Mo"); return; }
+    const submitBtn = resourceForm.querySelector("button[type=submit]");
+    const origLabel = submitBtn?.textContent;
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Envoi en cours…"; }
     const form = new FormData();
-    form.append("course", course); form.append("file", file); // Let API infer title from file name
+    form.append("course", course);
+    form.append("file", file);
     try {
       const response = await fetch("/api/resources/upload", { method: "POST", body: form });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Upload impossible");
-      courseResources.push(data); saveCourseResources(); event.target.reset(); renderCoursesPage(); showToast("Fichier partagé");
-    } catch (error) { showToast(error.message); }
+      // unshift so it appears at the top of the list immediately
+      courseResources.unshift(data);
+      saveCourseResources();
+      event.target.reset();
+      applyResourceSourceMode();
+      renderCoursesPage();
+      renderDashboardResources();
+      showToast("Fichier partagé ✓");
+    } catch (error) {
+      showToast(error.message);
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = origLabel; }
+    }
     return;
   }
   if (!url) return;
@@ -604,26 +675,109 @@ if (settingsForm) settingsForm.addEventListener("submit", event => {
   }
   showToast("Paramètres enregistrés");
 });
+// --- Avatar upload helpers ---
+function compressImageToBase64(file, maxSizePx = 200, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) { reject(new Error("Format non supporté")); return; }
+    if (file.size > 5 * 1024 * 1024) { reject(new Error("Image trop grande (max 5 Mo)")); return; }
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, maxSizePx / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => reject(new Error("Image illisible"));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("Lecture impossible"));
+    reader.readAsDataURL(file);
+  });
+}
+function initAvatarUpload() {
+  const fileInput = document.querySelector("#account-pic-file");
+  const previewImg = document.querySelector("#avatar-preview-img");
+  const previewInitial = document.querySelector("#avatar-preview-initial");
+  const removeBtn = document.querySelector("#remove-avatar");
+  if (!fileInput) return;
+
+  // Set initial state
+  const pic = currentUser?.profile_picture || "";
+  if (pic) {
+    previewImg.src = pic; previewImg.style.display = "block";
+    previewInitial.style.display = "none";
+    removeBtn.style.display = "inline-block";
+  } else {
+    previewInitial.textContent = (currentUser?.display_name || "É").charAt(0).toUpperCase();
+    previewInitial.style.display = "block";
+    previewImg.style.display = "none";
+    removeBtn.style.display = "none";
+  }
+
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const status = document.querySelector("#account-status");
+    try {
+      const b64 = await compressImageToBase64(file);
+      previewImg.src = b64; previewImg.style.display = "block";
+      previewInitial.style.display = "none";
+      removeBtn.style.display = "inline-block";
+      // Auto-save immediately
+      const displayName = document.querySelector("#account-name").value.trim() || currentUser?.display_name || "";
+      const resp = await fetch("/api/auth/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName, profilePicture: b64 }) });
+      if (!resp.ok) throw new Error((await resp.json()).error || "Upload échoué");
+      currentUser.profile_picture = b64;
+      if (status) { status.className = "calendar-status success"; status.textContent = "Photo mise à jour."; }
+    } catch (err) {
+      if (status) { status.className = "calendar-status error"; status.textContent = err.message; }
+    }
+    fileInput.value = "";
+  });
+
+  removeBtn?.addEventListener("click", async () => {
+    const status = document.querySelector("#account-status");
+    const displayName = document.querySelector("#account-name").value.trim() || currentUser?.display_name || "";
+    try {
+      const resp = await fetch("/api/auth/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName, profilePicture: "" }) });
+      if (!resp.ok) throw new Error((await resp.json()).error || "Erreur");
+      delete currentUser.profile_picture;
+      previewImg.src = ""; previewImg.style.display = "none";
+      previewInitial.textContent = displayName.charAt(0).toUpperCase();
+      previewInitial.style.display = "block";
+      removeBtn.style.display = "none";
+      if (status) { status.className = "calendar-status success"; status.textContent = "Photo supprimée."; }
+    } catch (err) {
+      if (status) { status.className = "calendar-status error"; status.textContent = err.message; }
+    }
+  });
+}
+initAvatarUpload();
+
 const accountForm = document.querySelector("#account-form");
 if (accountForm) accountForm.addEventListener("submit", async event => {
   event.preventDefault();
   const status = document.querySelector("#account-status");
   const displayName = document.querySelector("#account-name").value.trim();
-  const profilePicture = document.querySelector("#account-pic").value.trim();
   const password = document.querySelector("#account-password").value;
+  const currentPassword = document.querySelector("#current-password")?.value;
   try {
-    if (displayName || profilePicture !== undefined) {
+    if (displayName) {
+      const profilePicture = currentUser?.profile_picture || "";
       const response = await fetch("/api/auth/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName, profilePicture }) });
-      if (!response.ok) throw new Error((await response.json()).error || "Nom ou photo invalide.");
+      if (!response.ok) throw new Error((await response.json()).error || "Nom invalide.");
       currentUser.display_name = displayName;
-      if (profilePicture) currentUser.profile_picture = profilePicture;
-      else delete currentUser.profile_picture;
     }
     if (password) {
-      const response = await fetch("/api/auth/password", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+      const response = await fetch("/api/auth/password", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password, currentPassword }) });
       if (!response.ok) throw new Error((await response.json()).error || "Mot de passe invalide.");
     }
     document.querySelector("#account-password").value = "";
+    if (document.querySelector("#current-password")) document.querySelector("#current-password").value = "";
     render();
     status.className = "calendar-status success";
     status.textContent = "Compte mis à jour.";
@@ -681,9 +835,15 @@ function extractEventsFromIcs(icsText) {
     if (line === "BEGIN:VEVENT") current = {};
     if (current && line.startsWith("SUMMARY:")) current.summary = line.slice(8);
     if (current && line.startsWith("DTSTART")) current.start = parseIcsDate(line.split(":").slice(1).join(":"));
+    if (current && line.startsWith("DTEND")) current.end = parseIcsDate(line.split(":").slice(1).join(":"));
     if (current && line.startsWith("LOCATION:")) current.location = line.slice(9);
     if (line === "END:VEVENT" && current?.start && current.summary) {
-      events.push({ start: current.start.toISOString(), location: current.location || "", subject: current.summary.replace(/^(?:VG|CM|TD|CC|DS)\s*-\s*/i, "").replace(/\s*-\s*(?:CM|TD|TP|CC|DS)(?:\s*-\s*.*)?$/i, "").trim() });
+      events.push({
+        start: current.start.toISOString(),
+        end: current.end ? current.end.toISOString() : null,
+        location: current.location || "",
+        subject: current.summary.replace(/^(?:VG|CM|TD|CC|DS)\s*-\s*/i, "").replace(/\s*-\s*(?:CM|TD|TP|CC|DS)(?:\s*-\s*.*)?$/i, "").trim()
+      });
       current = null;
     }
   });

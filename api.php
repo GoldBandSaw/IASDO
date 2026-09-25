@@ -83,7 +83,14 @@ if ($path === 'api/auth/profile' && $method === 'PUT') {
     $name = trim((string)($body['displayName'] ?? ''));
     $pic = trim((string)($body['profilePicture'] ?? ''));
     if ($name === '' || mb_strlen($name) > 80) respond(['error' => 'Nom invalide.'], 422);
-    if ($pic !== '' && !filter_var($pic, FILTER_VALIDATE_URL)) respond(['error' => 'URL de la photo invalide.'], 422);
+    // Accept: empty string (clear), https URL, or data URI (base64 image uploaded from client)
+    if ($pic !== '') {
+        $isDataUri = str_starts_with($pic, 'data:image/');
+        $isUrl = filter_var($pic, FILTER_VALIDATE_URL) !== false;
+        if (!$isDataUri && !$isUrl) respond(['error' => 'Format de photo invalide.'], 422);
+        // Limit base64 payload to ~5MB (base64 of 5MB ≈ 6.7MB string)
+        if (strlen($pic) > 7_000_000) respond(['error' => 'Image trop volumineuse (max 5 Mo).'], 413);
+    }
     $stmt = $db->prepare('UPDATE users SET display_name = ?, profile_picture = ? WHERE username = ?');
     $stmt->execute([$name, $pic, $user['username']]);
     respond(['ok' => true, 'display_name' => $name, 'profile_picture' => $pic]);
@@ -139,8 +146,27 @@ if ($path === 'api/state' && $method === 'GET') {
     $settingsRow = $settingsStmt->fetchColumn();
     $settings = $settingsRow ? json_decode($settingsRow, true) : null;
     $courses = $db->query('SELECT name FROM courses ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
-    $resources = array_map(fn($row) => json_decode($row['payload'], true), $db->query('SELECT payload FROM resources')->fetchAll(PDO::FETCH_ASSOC));
+    // Resources loaded separately via /api/resources for performance — only send recent 20 here
+    $resStmt = $db->prepare("SELECT payload FROM resources ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT 20");
+    $resStmt->execute();
+    $resources = array_values(array_filter(array_map(fn($row) => json_decode($row['payload'], true), $resStmt->fetchAll(PDO::FETCH_ASSOC)), 'is_array'));
     respond(['tasks' => $tasks, 'settings' => $settings, 'courses' => $courses, 'resources' => $resources]);
+}
+// GET /api/resources — paginated resource listing
+if ($path === 'api/resources' && $method === 'GET') {
+    // Create index on first access if not exists (idempotent, fast if already exists)
+    try { $db->exec("CREATE INDEX IF NOT EXISTS idx_resources_created_at ON resources ((payload->>'created_at') DESC NULLS LAST)"); } catch (Throwable) {}
+    $limit = min(50, max(1, (int)($_GET['limit'] ?? 50)));
+    $before = isset($_GET['before']) ? (string)$_GET['before'] : null;
+    if ($before) {
+        $stmt = $db->prepare("SELECT payload FROM resources WHERE payload->>'created_at' < ? ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT ?");
+        $stmt->execute([$before, $limit]);
+    } else {
+        $stmt = $db->prepare("SELECT payload FROM resources ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT ?");
+        $stmt->execute([$limit]);
+    }
+    $resources = array_values(array_filter(array_map(fn($row) => json_decode($row['payload'], true), $stmt->fetchAll(PDO::FETCH_ASSOC)), 'is_array'));
+    respond(['resources' => $resources, 'total' => count($resources)]);
 }
 if ($path === 'api/tasks' && $method === 'POST') {
     $body = jsonBody();
@@ -220,24 +246,68 @@ if (count($parts) === 3 && $parts[0] === 'api' && $parts[1] === 'resources' && $
 }
 if ($path === 'api/resources/upload' && $method === 'POST') {
     $course = trim((string)($_POST['course'] ?? ''));
-    $title = trim((string)($_POST['title'] ?? ''));
-    $file = $_FILES['file'] ?? null;
-    $allowed = [
-        'application/pdf' => 'pdf',
-        'text/markdown' => 'markdown',
-        'text/plain' => 'txt',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+    $title  = trim((string)($_POST['title']  ?? ''));
+    $file   = $_FILES['file'] ?? null;
+
+    // Accepted MIME types → resource type label
+    $allowedMime = [
+        'application/pdf'  => 'pdf',
+        'text/markdown'    => 'markdown',
+        'text/plain'       => 'markdown',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'   => 'docx',
         'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'         => 'xlsx',
+        'application/msword' => 'docx',                    // legacy .doc
+        'application/vnd.ms-excel'       => 'xlsx',        // legacy .xls
+        'application/vnd.ms-powerpoint'  => 'pptx',        // legacy .ppt
+        'application/octet-stream'       => null,           // fallback – check extension below
+        'application/zip'                => null,           // .docx/.pptx/.xlsx are ZIP-based
     ];
-    if ($course === '' || !$file || !isset($file['tmp_name']) || (int)$file['error'] !== UPLOAD_ERR_OK) respond(['error' => 'Fichier invalide.'], 422);
-    if ((int)$file['size'] > 50 * 1024 * 1024) respond(['error' => 'Le fichier ne doit pas dépasser 50 Mo.'], 413);
-    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
-    if ($mime === false) respond(['error' => 'Type de fichier illisible.'], 415);
+    // Extension-based type map for common Office and document formats (covers misdetected MIMEs)
+    $allowedExt = [
+        'pdf'  => 'pdf',
+        'md'   => 'markdown', 'markdown' => 'markdown', 'txt' => 'markdown',
+        'docx' => 'docx', 'doc' => 'docx',
+        'pptx' => 'pptx', 'ppt' => 'pptx',
+        'xlsx' => 'xlsx', 'xls' => 'xlsx',
+        'png'  => 'image', 'jpg' => 'image', 'jpeg' => 'image', 'gif' => 'image', 'webp' => 'image',
+    ];
+
+    if ($course === '' || !$file || !isset($file['tmp_name']) || (int)$file['error'] !== UPLOAD_ERR_OK) {
+        respond(['error' => 'Fichier invalide ou matière manquante.'], 422);
+    }
+    if ((int)$file['size'] > 50 * 1024 * 1024) {
+        respond(['error' => 'Le fichier ne doit pas dépasser 50 Mo.'], 413);
+    }
+
     $extension = strtolower(pathinfo((string)$file['name'], PATHINFO_EXTENSION));
-    $imageMime = str_starts_with((string)$mime, 'image/') && in_array($extension, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true);
-    if (!isset($allowed[$mime]) && !$imageMime) respond(['error' => 'Format de fichier non autorisé.'], 415);
-    $type = $imageMime ? 'image' : $allowed[$mime];
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime  = (string)$finfo->file($file['tmp_name']);
+
+    // Determine resource type: prefer MIME, fall back to extension
+    $type = null;
+    $isImage = str_starts_with($mime, 'image/') && isset($allowedExt[$extension]) && $allowedExt[$extension] === 'image';
+    if ($isImage) {
+        $type = 'image';
+    } elseif (isset($allowedMime[$mime]) && $allowedMime[$mime] !== null) {
+        $type = $allowedMime[$mime];
+    } elseif (isset($allowedExt[$extension])) {
+        $type = $allowedExt[$extension];
+        // Override MIME to something reasonable for storage (avoid sending 'application/octet-stream' for .docx)
+        if ($mime === 'application/octet-stream' || $mime === 'application/zip') {
+            $officeMimes = [
+                'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'doc'  => 'application/msword',
+                'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ];
+            $mime = $officeMimes[$extension] ?? $mime;
+        }
+    }
+
+    if ($type === null) {
+        respond(['error' => "Format non autorisé (.$extension). Formats acceptés : PDF, Word (.doc/.docx), PowerPoint, Excel, Markdown, images."], 415);
+    }
     $resourceId = bin2hex(random_bytes(12));
     $safeName = preg_replace('/[^a-zA-Z0-9._-]+/', '-', basename((string)$file['name'])) ?: 'fichier';
     $objectPath = $username . '/' . $resourceId . '-' . $safeName;

@@ -32,7 +32,24 @@
                     <h2>Mon compte</h2>
                     <p>Ton identifiant ne peut pas être modifié. Seuls ton nom affiché et ton mot de passe sont modifiables.</p>
                     <form id="account-form">
-                        <label>Photo de profil (URL)<input id="account-pic" type="url" placeholder="https://..."></label>
+                        <div class="avatar-upload-section">
+                            <div class="avatar-preview-wrap">
+                                <div id="avatar-preview" class="avatar-preview">
+                                    <span id="avatar-preview-initial"></span>
+                                    <img id="avatar-preview-img" src="" alt="" style="display:none">
+                                </div>
+                                <label class="avatar-upload-label" for="account-pic-file">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                    Changer
+                                </label>
+                                <input id="account-pic-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
+                            </div>
+                            <div class="avatar-upload-info">
+                                <strong>Photo de profil</strong>
+                                <p>JPEG, PNG ou WebP · 5 Mo max · redimensionnée à 200×200 px automatiquement</p>
+                                <button type="button" class="remove-avatar-btn" id="remove-avatar" style="display:none">Supprimer la photo</button>
+                            </div>
+                        </div>
                         <label>Nom affiché<input id="account-name" maxlength="80" required></label>
                         <label>Mot de passe actuel<input id="current-password" type="password" placeholder="Requis pour changer le mot de passe"></label>
                         <label>Nouveau mot de passe<input id="account-password" type="password" minlength="10" placeholder="Laisser vide pour ne pas changer"></label>
@@ -44,6 +61,6 @@
             </section>
         </main>
     </div>
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>

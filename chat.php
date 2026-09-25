@@ -173,6 +173,6 @@
         setInterval(loadMessages, 3000);
     })();
     </script>
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>
