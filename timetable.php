@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="page-shell.css">
     <link rel="stylesheet" href="shared-pages.css">
     <link rel="stylesheet" href="modern.css?v=7">
+    <link rel="stylesheet" href="courses.css">
 </head>
 <body data-page="timetable">
     <div class="app-shell">
@@ -42,6 +43,8 @@
             </section>
         </main>
     </div>
+    <dialog id="task-editor"></dialog>
+    <dialog id="course-resources-modal"></dialog>
     <script src="app.js?v=6"></script>
 </body>
 </html>

@@ -265,6 +265,7 @@ function renderWeekGrid(weekStart, events) {
     const key = localDateKey(date);
     const dayEvents = events.filter(event => event.start.slice(0, 10) === key);
     const dayTasks  = tasks.filter(task => !task.done && task.due === key).map(task => ({
+      id: task.id,
       start: task.allDay || !task.time ? `${key}T00:00:00` : `${key}T${task.time}:00`,
       end:   task.allDay || !task.time ? null : `${key}T${task.time}:00`,
       subject: task.title,
@@ -284,17 +285,25 @@ function renderWeekGrid(weekStart, events) {
       const heightPct = pct(Math.max(30 / TOTAL_MINS * 100, endMins - startMins)); // min 30px equivalent
       const label     = event.allDay ? "Toute la journée"
                       : `${startDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}–${endDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
-      return `<article class="timetable-event timetable-event--abs ${event.isTask ? "task-event" : ""}" style="top:${topPct}%;height:${heightPct}%">
+      const actionAttr = event.isTask
+        ? `data-action="edit-task" data-id="${escapeHtml(event.id)}"`
+        : `data-action="view-course-resources" data-course="${escapeHtml(event.subject)}"`;
+      return `<article class="timetable-event timetable-event--abs ${event.isTask ? "task-event" : ""}" style="top:${topPct}%;height:${heightPct}%;cursor:pointer" ${actionAttr}>
         <time>${label}</time>
         <strong>${escapeHtml(event.subject)}</strong>
         <span>${escapeHtml(event.isTask ? event.location : (event.location || ""))}</span>
       </article>`;
     }).join("");
 
-    const allDayHtml = allDay.map(event => `<article class="timetable-event timetable-event--allday ${event.isTask ? "task-event" : ""}">
-      <time>Toute la journée</time><strong>${escapeHtml(event.subject)}</strong>
-      <span>${escapeHtml(event.location || "")}</span>
-    </article>`).join("");
+    const allDayHtml = allDay.map(event => {
+      const actionAttr = event.isTask
+        ? `data-action="edit-task" data-id="${escapeHtml(event.id)}"`
+        : `data-action="view-course-resources" data-course="${escapeHtml(event.subject)}"`;
+      return `<article class="timetable-event timetable-event--allday ${event.isTask ? "task-event" : ""}" style="cursor:pointer" ${actionAttr}>
+        <time>Toute la journée</time><strong>${escapeHtml(event.subject)}</strong>
+        <span>${escapeHtml(event.location || "")}</span>
+      </article>`;
+    }).join("");
 
     const isToday = key === localDateKey(getToday());
     return `<div class="tt-day-col${isToday ? " tt-today" : ""}">
@@ -475,6 +484,11 @@ document.addEventListener("click", event => {
       openTaskEditor(tasks.find(task => String(task.id) === id));
       return;
     }
+    if (action.dataset.action === "view-course-resources") {
+      const course = action.dataset.course;
+      if (course) openCourseResourcesModal(course);
+      return;
+    }
     if (action.dataset.action === "toggle") {
       tasks = tasks.map(task => String(task.id) === id ? { ...task, done: !task.done } : task);
       const changed = tasks.find(task => String(task.id) === id);
@@ -538,7 +552,8 @@ function openTaskEditor(task) {
         priority: document.querySelector("#edit-task-priority").value,
         shared: document.querySelector("#edit-task-shared").checked
       });
-      apiRequest(`/api/tasks/${current.id}`, "PUT", current).catch(error => console.error("Modification de la tâche impossible.", error));
+      const task = current;
+      apiRequest(`/api/tasks/${task.id}`, "PUT", current).catch(error => console.error("Modification de la tâche impossible.", error));
       saveTasks(); modal.close(); render(); showToast("Tâche modifiée");
     });
   }
@@ -550,6 +565,56 @@ function openTaskEditor(task) {
   document.querySelector("#edit-task-shared").checked = Boolean(task.shared);
   document.querySelector("#edit-course-options").innerHTML = courses.map(course => `<option value="${escapeHtml(course)}"></option>`).join("");
   modal.showModal();
+}
+async function openCourseResourcesModal(courseName) {
+  if (!courseName) return;
+  let modal = document.querySelector("#course-resources-modal");
+  if (!modal) {
+    modal = document.createElement("dialog");
+    modal.id = "course-resources-modal";
+    modal.className = "course-resources-modal";
+    document.body.appendChild(modal);
+    modal.addEventListener("click", event => {
+      if (event.target === modal) modal.close();
+    });
+  } else {
+    modal.addEventListener("click", event => {
+      if (event.target === modal) modal.close();
+    });
+  }
+  modal.innerHTML = `<div class="modal-content" style="max-width:640px;width:92vw;padding:24px;border-radius:16px;background:var(--surface,#fff)">
+    <div class="panel-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
+      <div>
+        <p class="eyebrow" style="margin:0 0 4px">Ressources du cours</p>
+        <h2 style="margin:0">${escapeHtml(courseName)}</h2>
+      </div>
+      <button class="delete-button" onclick="this.closest('dialog').close()" aria-label="Fermer" style="border:0;background:transparent;font-size:22px;cursor:pointer">×</button>
+    </div>
+    <div id="course-modal-resources-list">
+      <p class="calendar-status">Chargement…</p>
+    </div>
+  </div>`;
+  modal.showModal();
+
+  try {
+    const data = await apiRequest(`/api/resources?course=${encodeURIComponent(courseName)}`, "GET");
+    if (data && Array.isArray(data.resources)) {
+      data.resources.forEach(res => {
+        if (!courseResources.some(r => r.id === res.id)) courseResources.push(res);
+      });
+      saveCourseResources();
+    }
+  } catch (e) {
+    console.warn("Impossible de rafraîchir les ressources pour le cours", e);
+  }
+
+  const matching = courseResources.filter(r => r.course === courseName || (r.course && r.course.trim().toLowerCase() === courseName.trim().toLowerCase()));
+  const listContainer = modal.querySelector("#course-modal-resources-list");
+  if (listContainer) {
+    listContainer.innerHTML = matching.length
+      ? `<div class="resources-grid" style="display:grid;gap:12px">${matching.map(resourceMarkup).join("")}</div>`
+      : `<div class="empty-state"><strong>Aucune ressource</strong><p>Aucune ressource n'a encore été ajoutée pour ${escapeHtml(courseName)}.</p></div>`;
+  }
 }
 const courseForm = document.querySelector("#course-form");
 if (courseForm) courseForm.addEventListener("submit", event => {
