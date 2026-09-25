@@ -149,8 +149,8 @@ if ($path === 'api/state' && $method === 'GET') {
     $settingsRow = $settingsStmt->fetchColumn();
     $settings = $settingsRow ? json_decode($settingsRow, true) : null;
     $courses = $db->query('SELECT name FROM courses ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
-    // Resources loaded separately via /api/resources for performance — only send recent 20 here
-    $resStmt = $db->prepare("SELECT jsonb_build_object('id', id, 'title', payload->>'title', 'course', payload->>'course', 'type', payload->>'type', 'url', payload->>'url', 'created_at', payload->>'created_at', 'file_path', payload->>'file_path') AS payload FROM resources ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT 5");
+    // Resources loaded separately via /api/resources for performance — only send recent 5 here
+    $resStmt = $db->prepare("SELECT payload FROM resources ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT 5");
     $resStmt->execute();
     $resources = array_values(array_filter(array_map(fn($row) => json_decode($row['payload'], true), $resStmt->fetchAll(PDO::FETCH_ASSOC)), 'is_array'));
     respond(['tasks' => $tasks, 'settings' => $settings, 'courses' => $courses, 'resources' => $resources]);
@@ -161,13 +161,21 @@ if ($path === 'api/resources' && $method === 'GET') {
     try { $db->exec("CREATE INDEX IF NOT EXISTS idx_resources_created_at ON resources ((payload->>'created_at') DESC NULLS LAST)"); } catch (Throwable) {}
     $limit = min(50, max(1, (int)($_GET['limit'] ?? 50)));
     $before = isset($_GET['before']) ? (string)$_GET['before'] : null;
+    $course = isset($_GET['course']) ? trim((string)$_GET['course']) : null;
+    $conditions = [];
+    $params = [];
     if ($before) {
-        $stmt = $db->prepare("SELECT payload FROM resources WHERE payload->>'created_at' < ? ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT ?");
-        $stmt->execute([$before, $limit]);
-    } else {
-        $stmt = $db->prepare("SELECT payload FROM resources ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT ?");
-        $stmt->execute([$limit]);
+        $conditions[] = "payload->>'created_at' < ?";
+        $params[] = $before;
     }
+    if ($course !== null && $course !== '') {
+        $conditions[] = "payload->>'course' = ?";
+        $params[] = $course;
+    }
+    $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+    $stmt = $db->prepare("SELECT payload FROM resources $where ORDER BY (payload->>'created_at') DESC NULLS LAST LIMIT ?");
+    $params[] = $limit;
+    $stmt->execute($params);
     $resources = array_values(array_filter(array_map(fn($row) => json_decode($row['payload'], true), $stmt->fetchAll(PDO::FETCH_ASSOC)), 'is_array'));
     respond(['resources' => $resources, 'total' => count($resources)]);
 }

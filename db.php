@@ -8,6 +8,7 @@ function initializeSchema(PDO $db): void {
     $db->exec('CREATE TABLE IF NOT EXISTS resource_reports (id BIGSERIAL PRIMARY KEY, resource_id TEXT NOT NULL, reporter TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'open\', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (resource_id, reporter))');
     $db->exec('CREATE TABLE IF NOT EXISTS courses (name TEXT PRIMARY KEY)');
     $db->exec('CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, payload JSONB NOT NULL)');
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_resources_created_at ON resources ((payload->>'created_at') DESC NULLS LAST)");
     $db->exec('CREATE TABLE IF NOT EXISTS proposals (id BIGSERIAL PRIMARY KEY, course TEXT NOT NULL, title TEXT NOT NULL, resource_type TEXT NOT NULL, url TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'pending\', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     $db->exec('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, display_name TEXT NOT NULL, password_hash TEXT NOT NULL DEFAULT \'\', setup_token_hash TEXT NOT NULL DEFAULT \'\', setup_used BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     $db->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'student'");

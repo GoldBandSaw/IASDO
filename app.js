@@ -105,6 +105,7 @@ async function syncInitialState() {
     render();
     // If on courses page, fetch full list in the background
     if (document.body.dataset.page === "courses") loadAllResources();
+    if (document.body.dataset.page === "dashboard" || !document.body.dataset.page) loadRecentResources();
   } catch (error) {
     console.error("Synchronisation de la base impossible.", error);
   }
@@ -119,6 +120,18 @@ async function loadAllResources() {
       renderDashboardResources();
     }
   } catch (e) { /* non-critical */ }
+}
+async function loadRecentResources() {
+  try {
+    const data = await apiRequest("/api/resources?limit=4", "GET");
+    if (data && Array.isArray(data.resources)) {
+      courseResources = data.resources;
+      saveCourseResources();
+      renderDashboardResources();
+    }
+  } catch (e) {
+    console.error("Impossible de charger les ressources récentes.", e);
+  }
 }
 function fetchCalendar() {
   return fetch("/api/timetable", { cache: "no-store" });
@@ -200,9 +213,12 @@ function render() {
   renderNextStep();
 }
 function renderSettings() {
-  document.querySelector("#first-name").value = settings.firstName;
-  document.querySelector("#last-name").value = settings.lastName;
-  document.querySelector("#dark-mode").checked = settings.darkMode;
+  const firstName = document.querySelector("#first-name");
+  if (firstName) firstName.value = settings.firstName;
+  const lastName = document.querySelector("#last-name");
+  if (lastName) lastName.value = settings.lastName;
+  const darkMode = document.querySelector("#dark-mode");
+  if (darkMode) darkMode.checked = settings.darkMode;
   const calendarSetting = document.querySelector("#saved-calendar-url");
   if (calendarSetting) {
     calendarSetting.value = "Planning commun de la promotion";
@@ -886,6 +902,7 @@ if (taskDate) taskDate.min = localDateKey(getToday());
 ensureCoursesNav();
 render();
 syncInitialState();
+if (document.body.dataset.page === "dashboard" || !document.body.dataset.page) loadRecentResources();
 if (!document.body.dataset.page) showView("dashboard");
 ensureAdminNav();
 if (document.body.dataset.page === "timetable") {
