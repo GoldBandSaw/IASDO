@@ -326,7 +326,7 @@ function previewMarkup(resource) {
 }
 function resourceMarkup(resource) {
   const href = resource.file_path ? `/api/resources/${encodeURIComponent(resource.id)}/download` : resource.url;
-  const target = resource.file_path ? "" : ' target="_blank" rel="noopener noreferrer"';
+  const target = ' target="_blank" rel="noopener noreferrer"';
   const canDelete = currentUser && (currentUser.role === 'admin' || resource.owner === currentUser.username);
   const deleteBtn = canDelete ? `<button class="delete-button" data-resource-delete="${escapeHtml(resource.id)}" aria-label="Supprimer ${escapeHtml(resource.title)}">×</button>` : '';
   const timeInfo = resource.created_at ? ` · ${timeAgo(resource.created_at)}` : '';
@@ -381,7 +381,7 @@ function renderDashboardResources() {
         const timeInfo = resource.created_at ? ` · ${timeAgo(resource.created_at)}` : '';
         const ownerInfo = resource.owner ? ` · par ${escapeHtml(resource.owner)}` : '';
         return href
-          ? `<a class="recent-resource" href="${escapeHtml(href)}" ${resource.file_path ? '' : 'target="_blank" rel="noopener noreferrer"'}><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)}${ownerInfo}${timeInfo}</small></span><span aria-hidden="true">${resource.file_path ? '↓' : '↗'}</span></a>`
+          ? `<a class="recent-resource" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)}${ownerInfo}${timeInfo}</small></span><span aria-hidden="true">${resource.file_path ? '↓' : '↗'}</span></a>`
           : `<div class="recent-resource"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)}${ownerInfo}${timeInfo}</small></span></div>`;
       }).join("")
     : emptyMarkup("Aucune ressource partagée", "La bibliothèque se remplira dès que quelqu'un ajoutera un lien.");

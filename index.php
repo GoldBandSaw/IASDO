@@ -85,6 +85,6 @@
             <dialog id="task-editor"></dialog>
         </main>
     </div>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=6"></script>
 </body>
 </html>
