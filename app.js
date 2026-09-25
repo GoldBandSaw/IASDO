@@ -196,6 +196,8 @@ function renderSettings() {
   }
   const accountName = document.querySelector("#account-name");
   if (accountName) accountName.value = currentUser?.display_name || "";
+  const accountPic = document.querySelector("#account-pic");
+  if (accountPic) accountPic.value = currentUser?.profile_picture || "";
 }
 function renderTimetable() {
   const grid = document.querySelector("#timetable-grid");
@@ -205,7 +207,8 @@ function renderTimetable() {
     const date = new Date(event.start);
     return date >= weekStart && date < weekEnd;
   });
-  document.querySelector("#week-label").textContent = `${weekStart.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} — ${new Date(weekEnd - 86400000).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`;
+  const weekLabel = document.querySelector("#week-label");
+  if (weekLabel) weekLabel.textContent = `${weekStart.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} — ${new Date(weekEnd - 86400000).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`;
   if (grid) grid.innerHTML = renderWeekGrid(weekStart, visibleEvents);
 }
 function getWeekStart(offset) {
@@ -259,6 +262,14 @@ function resourceTypeName(type) {
 function resourceIcon(type) {
   return { notion: "N", pdf: "PDF", markdown: "MD", image: "IMG", gemini: "*", other: "↗" }[type] || "->";
 }
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const diff = Math.floor((new Date() - new Date(dateStr)) / 1000);
+  if (diff < 60) return 'à l\'instant';
+  if (diff < 3600) return Math.floor(diff / 60) + ' min';
+  if (diff < 86400) return Math.floor(diff / 3600) + ' h';
+  return Math.floor(diff / 86400) + ' j';
+}
 function previewMarkup(resource) {
   return "";
 }
@@ -267,8 +278,10 @@ function resourceMarkup(resource) {
   const target = resource.file_path ? "" : ' target="_blank" rel="noopener noreferrer"';
   const canDelete = currentUser && (currentUser.role === 'admin' || resource.owner === currentUser.username);
   const deleteBtn = canDelete ? `<button class="delete-button" data-resource-delete="${escapeHtml(resource.id)}" aria-label="Supprimer ${escapeHtml(resource.title)}">×</button>` : '';
+  const timeInfo = resource.created_at ? ` · ${timeAgo(resource.created_at)}` : '';
+  const ownerInfo = resource.owner ? `Par ${escapeHtml(resource.owner)}` : 'Auteur inconnu';
   return `<article class="resource-card">
-    <div class="resource-card-header"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><div class="resource-heading"><h3>${escapeHtml(resource.title)}</h3><span>${resourceTypeName(resource.type)}${resource.file_name ? ` · ${escapeHtml(resource.file_name)}` : ""}</span></div>${deleteBtn}</div>
+    <div class="resource-card-header"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><div class="resource-heading"><h3>${escapeHtml(resource.title)}</h3><span>${ownerInfo}${timeInfo}</span></div>${deleteBtn}</div>
     ${previewMarkup(resource)}
     <div class="resource-actions"><a class="resource-link" href="${escapeHtml(href)}"${target}>${resource.file_path ? "Télécharger le fichier" : "Ouvrir la ressource"} <span>↗</span></a><button class="report-resource" data-resource-report="${escapeHtml(resource.id)}">Signaler</button></div>
   </article>`;
@@ -311,10 +324,12 @@ function renderDashboardResources() {
   const recent = [...courseResources].slice(-4).reverse();
   list.innerHTML = recent.length
     ? recent.map(resource => {
-        const href = resource.url || resource.signed_url;
+        const href = resource.file_path ? `/api/resources/${encodeURIComponent(resource.id)}/download` : resource.url;
+        const timeInfo = resource.created_at ? ` · ${timeAgo(resource.created_at)}` : '';
+        const ownerInfo = resource.owner ? ` · par ${escapeHtml(resource.owner)}` : '';
         return href
-          ? `<a class="recent-resource" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)} · ${resourceTypeName(resource.type)}</small></span><span aria-hidden="true">↗</span></a>`
-          : `<div class="recent-resource"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)} · ${resourceTypeName(resource.type)}</small></span></div>`;
+          ? `<a class="recent-resource" href="${escapeHtml(href)}" ${resource.file_path ? '' : 'target="_blank" rel="noopener noreferrer"'}><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)}${ownerInfo}${timeInfo}</small></span><span aria-hidden="true">${resource.file_path ? '↓' : '↗'}</span></a>`
+          : `<div class="recent-resource"><span class="resource-icon ${escapeHtml(resource.type)}">${resourceIcon(resource.type)}</span><span><strong>${escapeHtml(resource.title)}</strong><small>${escapeHtml(resource.course)}${ownerInfo}${timeInfo}</small></span></div>`;
       }).join("")
     : emptyMarkup("Aucune ressource partagée", "La bibliothèque se remplira dès que quelqu'un ajoutera un lien.");
 }
@@ -499,9 +514,7 @@ if (resourceSource) resourceSource.addEventListener("change", () => {
 });
 if (resourceForm) resourceForm.addEventListener("submit", async event => {
   event.preventDefault();
-  const title = document.querySelector("#resource-title").value.trim();
   const course = document.querySelector("#resource-course").value;
-  const type = document.querySelector("#resource-type").value;
   const url = document.querySelector("#resource-url").value.trim();
   const file = document.querySelector("#resource-file").files[0];
   if (!course) return;
@@ -509,7 +522,7 @@ if (resourceForm) resourceForm.addEventListener("submit", async event => {
     if (!file) { showToast("Choisis un fichier"); return; }
     if (file.size > 50 * 1024 * 1024) { showToast("Le fichier ne doit pas dépasser 50 Mo"); return; }
     const form = new FormData();
-    form.append("course", course); form.append("title", title); form.append("file", file);
+    form.append("course", course); form.append("file", file); // Let API infer title from file name
     try {
       const response = await fetch("/api/resources/upload", { method: "POST", body: form });
       const data = await response.json();
@@ -518,7 +531,7 @@ if (resourceForm) resourceForm.addEventListener("submit", async event => {
     } catch (error) { showToast(error.message); }
     return;
   }
-  if (!title || !url) return;
+  if (!url) return;
   try {
     const parsed = new URL(url);
     if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("URL non sécurisée");
@@ -526,11 +539,26 @@ if (resourceForm) resourceForm.addEventListener("submit", async event => {
     showToast("Ajoute une URL HTTPS valide");
     return;
   }
-  courseResources.push({ id: Date.now(), title, course, type, url });
-  saveCourseResources();
-  apiRequest("/api/resources", "POST", courseResources.at(-1)).catch(error => console.error("Enregistrement de la ressource impossible.", error));
-  event.target.reset();
+  
+  // Optimistic UI push with temporary title. Real title will be fetched from server.
+  const tempResource = { id: Date.now(), title: "Chargement du titre...", course, type: 'other', url };
+  courseResources.push(tempResource);
   renderCoursesPage();
+  
+  apiRequest("/api/resources", "POST", { course, url }).then(saved => {
+      // Replace optimistic temp resource with the saved one
+      const idx = courseResources.findIndex(r => r.id === tempResource.id);
+      if (idx !== -1) courseResources[idx] = saved;
+      saveCourseResources();
+      renderCoursesPage();
+  }).catch(error => {
+      // Revert if error
+      courseResources = courseResources.filter(r => r.id !== tempResource.id);
+      renderCoursesPage();
+      showToast("Erreur d'ajout");
+  });
+  
+  event.target.reset();
   showToast("Cours ajouté");
 });
 const calendarForm = document.querySelector("#calendar-form");
@@ -581,12 +609,15 @@ if (accountForm) accountForm.addEventListener("submit", async event => {
   event.preventDefault();
   const status = document.querySelector("#account-status");
   const displayName = document.querySelector("#account-name").value.trim();
+  const profilePicture = document.querySelector("#account-pic").value.trim();
   const password = document.querySelector("#account-password").value;
   try {
-    if (displayName) {
-      const response = await fetch("/api/auth/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName }) });
-      if (!response.ok) throw new Error((await response.json()).error || "Nom invalide.");
+    if (displayName || profilePicture !== undefined) {
+      const response = await fetch("/api/auth/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName, profilePicture }) });
+      if (!response.ok) throw new Error((await response.json()).error || "Nom ou photo invalide.");
       currentUser.display_name = displayName;
+      if (profilePicture) currentUser.profile_picture = profilePicture;
+      else delete currentUser.profile_picture;
     }
     if (password) {
       const response = await fetch("/api/auth/password", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });

@@ -207,19 +207,33 @@
 }
 
 /* Dark mode */
+body.dark-mode .chat-container {
+    background: var(--bg, #121a26);
+}
+
+body.dark-mode .chat-header {
+    border-color: var(--line, #293548);
+}
+
+body.dark-mode .chat-header h1 {
+    color: var(--ink, #e8edf5);
+}
+
 body.dark-mode .chat-message.other .chat-bubble {
-    background: var(--card-bg, #2a2520);
-    border-color: var(--border, #3a3530);
+    background: #1b2635;
+    border-color: var(--line, #293548);
+    color: var(--ink, #e8edf5);
 }
 
 body.dark-mode .chat-input {
-    background: var(--bg-main, #1e1a15);
-    border-color: var(--border, #3a3530);
-    color: var(--text-main, #e8e0d5);
+    background: #1b2635;
+    border-color: var(--line, #293548);
+    color: var(--ink, #e8edf5);
 }
 
 body.dark-mode .chat-input-area {
-    background: var(--card-bg, #2a2520);
+    background: var(--bg, #121a26);
+    border-color: var(--line, #293548);
 }
 
 /* Mobile */

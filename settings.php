@@ -32,6 +32,7 @@
                     <h2>Mon compte</h2>
                     <p>Ton identifiant ne peut pas être modifié. Seuls ton nom affiché et ton mot de passe sont modifiables.</p>
                     <form id="account-form">
+                        <label>Photo de profil (URL)<input id="account-pic" type="url" placeholder="https://..."></label>
                         <label>Nom affiché<input id="account-name" maxlength="80" required></label>
                         <label>Mot de passe actuel<input id="current-password" type="password" placeholder="Requis pour changer le mot de passe"></label>
                         <label>Nouveau mot de passe<input id="account-password" type="password" minlength="10" placeholder="Laisser vide pour ne pas changer"></label>
@@ -43,6 +44,6 @@
             </section>
         </main>
     </div>
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>

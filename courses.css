@@ -4,7 +4,7 @@
 .privacy-note{display:grid;gap:5px;padding:14px 16px;border-radius:11px;background:var(--amber-tint);color:var(--muted);font-size:12px;line-height:1.45}
 .privacy-note strong{color:var(--accent);font-size:13px}
 .add-resource-card{margin-top:18px}
-.resource-form{display:grid;grid-template-columns:1fr 1fr 1fr 1.5fr 1.5fr auto;gap:12px;align-items:end}
+.resource-form{display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:12px;align-items:end}
 .resource-file-field{display:none}
 .embed-hint{margin:14px 0 0;color:var(--muted);font-size:11px}
 .course-section{margin-top:24px}

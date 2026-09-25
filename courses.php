@@ -27,8 +27,6 @@
         <form id="resource-form" class="resource-form">
           <label>Matière<select id="resource-course" required></select></label>
           <label>Source<select id="resource-source"><option value="link">Lien externe</option><option value="file">Fichier</option></select></label>
-          <label>Type<select id="resource-type"><option value="notion">Notion</option><option value="pdf">PDF</option><option value="markdown">Markdown</option><option value="other">Autre</option></select></label>
-          <label>Titre<input id="resource-title" placeholder="Ex. Chapitre 3 — Probabilités"></label>
           <label class="resource-url-field" id="resource-link-field">Lien<input id="resource-url" type="url" placeholder="https://..."></label>
           <label class="resource-file-field" id="resource-file-field">Fichier<input id="resource-file" type="file" accept=".pdf,.md,.markdown,.txt,.docx,.pptx,.xlsx,.png,.jpg,.jpeg,.gif,.webp"></label>
           <button class="primary-button" type="submit">Partager la ressource</button>
@@ -39,6 +37,6 @@
     </main>
   </div>
   <div id="toast" class="toast"></div>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

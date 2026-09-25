@@ -74,7 +74,7 @@ function currentUser(): ?array {
         session_destroy();
         return null;
     }
-    $stmt = database()->prepare('SELECT username, display_name, role FROM users WHERE username = ?');
+    $stmt = database()->prepare('SELECT username, display_name, role, profile_picture FROM users WHERE username = ?');
     $stmt->execute([$_SESSION['username']]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     return $user ?: null;

@@ -79,11 +79,14 @@ if ($path === 'api/auth/password' && $method === 'PUT') {
 }
 if ($path === 'api/auth/profile' && $method === 'PUT') {
     $user = requireUser();
-    $name = trim((string)(jsonBody()['displayName'] ?? ''));
+    $body = jsonBody();
+    $name = trim((string)($body['displayName'] ?? ''));
+    $pic = trim((string)($body['profilePicture'] ?? ''));
     if ($name === '' || mb_strlen($name) > 80) respond(['error' => 'Nom invalide.'], 422);
-    $stmt = $db->prepare('UPDATE users SET display_name = ? WHERE username = ?');
-    $stmt->execute([$name, $user['username']]);
-    respond(['ok' => true, 'display_name' => $name]);
+    if ($pic !== '' && !filter_var($pic, FILTER_VALIDATE_URL)) respond(['error' => 'URL de la photo invalide.'], 422);
+    $stmt = $db->prepare('UPDATE users SET display_name = ?, profile_picture = ? WHERE username = ?');
+    $stmt->execute([$name, $pic, $user['username']]);
+    respond(['ok' => true, 'display_name' => $name, 'profile_picture' => $pic]);
 }
 if ($path === 'api/auth/logout' && $method === 'POST') {
     startSession();
@@ -175,13 +178,29 @@ if ($path === 'api/courses' && $method === 'POST') {
 }
 if ($path === 'api/resources' && $method === 'POST') {
     $body = jsonBody();
-    foreach (['title', 'course', 'type', 'url'] as $field) {
-        if (!isset($body[$field]) || trim((string)$body[$field]) === '') respond(['error' => "$field requis"], 422);
-    }
+    if (empty($body['course']) || empty($body['url'])) respond(['error' => 'Champs requis'], 422);
     $url = sanitizeUrl($body['url']);
     if (!$url) respond(['error' => 'URL invalide'], 422);
+    
+    $title = trim((string)($body['title'] ?? ''));
+    if ($title === '') {
+        $context = stream_context_create(['http' => ['timeout' => 3, 'user_agent' => 'CampusFlowBot/1.0']]);
+        $html = @file_get_contents($url, false, $context, 0, 8192);
+        if ($html && preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $matches)) {
+            $title = html_entity_decode(trim($matches[1]), ENT_QUOTES, 'UTF-8');
+        } else {
+            $title = parse_url($url, PHP_URL_HOST) ?? 'Lien externe';
+        }
+    }
+    
+    $type = trim((string)($body['type'] ?? ''));
+    if ($type === '') {
+        if (str_contains($url, 'notion.so') || str_contains($url, 'notion.site')) $type = 'notion';
+        else $type = 'other';
+    }
+
     $resourceId = bin2hex(random_bytes(8));
-    $resource = ['id' => $resourceId, 'title' => trim((string)$body['title']), 'course' => trim((string)$body['course']), 'type' => trim((string)$body['type']), 'url' => $url, 'owner' => $username];
+    $resource = ['id' => $resourceId, 'title' => $title, 'course' => trim((string)$body['course']), 'type' => $type, 'url' => $url, 'owner' => $username, 'created_at' => date('c')];
     $db->prepare('INSERT INTO resources (id, payload) VALUES (?, ?::jsonb)')->execute([$resourceId, json_encode($resource)]);
     respond($resource, 201);
 }
@@ -226,7 +245,7 @@ if ($path === 'api/resources/upload' && $method === 'POST') {
     $content = file_get_contents($file['tmp_name']);
     [$status] = storageRequest('POST', '/object/' . rawurlencode($bucket) . '/' . str_replace('%2F', '/', rawurlencode($objectPath)), $content, ['Content-Type: ' . $mime, 'x-upsert: false']);
     if ($status < 200 || $status >= 300) respond(['error' => 'Le fichier n’a pas pu être stocké.'], 502);
-    $resource = ['id' => $resourceId, 'title' => $title !== '' ? $title : pathinfo((string)$file['name'], PATHINFO_FILENAME), 'course' => $course, 'type' => $type, 'file_name' => (string)$file['name'], 'file_path' => $objectPath, 'owner' => $username];
+    $resource = ['id' => $resourceId, 'title' => $title !== '' ? $title : pathinfo((string)$file['name'], PATHINFO_FILENAME), 'course' => $course, 'type' => $type, 'file_name' => (string)$file['name'], 'file_path' => $objectPath, 'owner' => $username, 'created_at' => date('c')];
     $db->prepare('INSERT INTO resources (id, payload) VALUES (?, ?::jsonb)')->execute([$resourceId, json_encode($resource)]);
     respond($resource, 201);
 }
@@ -327,7 +346,7 @@ if (count($parts) === 4 && $parts[0] === 'api' && $parts[1] === 'proposals' && $
 // GET /api/chat?after=ID — Get chat messages
 if ($method === 'GET' && $path === 'api/chat') {
     $after = isset($_GET['after']) ? (int)$_GET['after'] : 0;
-    $stmt = $db->prepare('SELECT m.id, m.username, m.content, m.created_at, 
+    $stmt = $db->prepare('SELECT m.id, m.username, m.content, m.created_at, u.profile_picture,
         COALESCE(u.display_name, m.username) as display_name
         FROM messages m LEFT JOIN users u ON m.username = u.username
         WHERE m.id > ? ORDER BY m.id ASC LIMIT 100');

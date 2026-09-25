@@ -4,6 +4,7 @@ declare(strict_types=1);
 $currentPage = basename($_SERVER['SCRIPT_NAME'] ?? 'index.php');
 $displayName = trim((string)($currentUser['display_name'] ?? 'Étudiant'));
 $initial = function_exists('mb_substr') ? mb_strtoupper(mb_substr($displayName, 0, 1)) : strtoupper(substr($displayName, 0, 1));
+$profilePic = $currentUser['profile_picture'] ?? '';
 $navigation = [
     ['index.php', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', "Vue d'ensemble"],
     ['tasks.php', '✓', 'Mes tâches'],
@@ -31,7 +32,11 @@ $navigation = [
     <?php endforeach; ?>
   </nav>
   <a class="account-card" href="settings.php">
-    <span class="avatar"><?= htmlspecialchars($initial ?: 'É', ENT_QUOTES, 'UTF-8') ?></span>
+    <?php if ($profilePic): ?>
+        <img src="<?= htmlspecialchars($profilePic, ENT_QUOTES, 'UTF-8') ?>" class="avatar" style="object-fit:cover" alt="">
+    <?php else: ?>
+        <span class="avatar"><?= htmlspecialchars($initial ?: 'É', ENT_QUOTES, 'UTF-8') ?></span>
+    <?php endif; ?>
     <span class="account-copy"><strong><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') ?></strong><small>Compte étudiant</small></span>
     <span class="account-arrow" aria-hidden="true">→</span>
   </a>

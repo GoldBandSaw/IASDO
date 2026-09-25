@@ -38,6 +38,7 @@
     (function() {
         const currentUser = <?= json_encode($currentUser['username']) ?>;
         const currentDisplayName = <?= json_encode($currentUser['display_name'] ?? $currentUser['username']) ?>;
+        const currentProfilePicture = <?= json_encode($currentUser['profile_picture'] ?? '') ?>;
         const messagesEl = document.getElementById('chat-messages');
         const form = document.getElementById('chat-form');
         const input = document.getElementById('chat-input');
@@ -79,9 +80,12 @@
             const isOwn = msg.username === currentUser;
             const name = msg.display_name || msg.username;
             const initial = name.charAt(0).toUpperCase();
+            const avatarHtml = msg.profile_picture 
+                ? `<img src="${escapeHtml(msg.profile_picture)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+                : escapeHtml(initial);
             return `
                 <div class="chat-message ${isOwn ? 'own' : 'other'}">
-                    <div class="chat-avatar" style="background:${getColor(msg.username)}">${escapeHtml(initial)}</div>
+                    <div class="chat-avatar" style="${msg.profile_picture ? 'background:transparent' : `background:${getColor(msg.username)}`}">${avatarHtml}</div>
                     <div class="chat-bubble">
                         <div class="chat-bubble-header">
                             <span class="chat-username">${escapeHtml(name)}</span>
@@ -128,6 +132,7 @@
                 id: 'temp-' + Date.now(),
                 username: currentUser,
                 display_name: currentDisplayName,
+                profile_picture: currentProfilePicture,
                 content: content,
                 created_at: new Date().toISOString()
             };
@@ -168,6 +173,6 @@
         setInterval(loadMessages, 3000);
     })();
     </script>
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>
